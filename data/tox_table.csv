@@ -1,18 +1,18 @@
-"genus","count","median","mean","max","cylindrospermopsin","microcystin","saxitoxin"
-"Anabaena",643,312,3461,13539,1,1,1
-"Anabaenopsis",137,188,1170,3536,NA,1,NA
-"Aphanizomenon",318,740,8527,25923,1,NA,1
-"Aphanocapsa",397,110,13406,158052,NA,1,NA
-"Coelosphaerium",166,891,6094,36273,NA,1,NA
-"Cylindrospermopsis",47,438,2481,5268,1,NA,1
-"Leptolyngbya",143,1062,3271,8121,NA,1,NA
-"Limnothrix",80,676,13383,51263,NA,1,NA
-"Lyngbya",268,174,1853,5620,1,1,1
-"Microcystis",661,2953,27974,204147,NA,1,NA
-"Oscillatoria",521,239,2929,14601,NA,1,1
-"Planktolyngbya",93,305,1714,5530,NA,1,1
-"Pseudanabaena",106,323,1802,6861,NA,1,NA
-"Raphidiopsis",134,74,1328,7030,1,NA,NA
-"Snowella",26,703,2030,5357,NA,1,NA
-"Synechococcus",283,201,407,591,NA,1,NA
-"Synechocystis",187,490,2421,8951,NA,1,NA
+"genus","count","median","mean","max","anatoxin","cylindrospermopsin","microcystin","nodularin","saxitoxin","comment"
+"Anabaena",643,312,3461,13539,1,1,1,NA,1,""
+"Anabaenopsis",137,188,1170,3536,NA,NA,1,NA,NA,""
+"Aphanizomenon",318,740,8527,25923,1,1,NA,NA,1,""
+"Aphanocapsa",397,110,13406,158052,NA,NA,1,NA,NA,""
+"Coelosphaerium",166,891,6094,36273,NA,NA,1,NA,NA,""
+"Cylindrospermopsis",47,438,2481,5268,NA,1,NA,NA,1,""
+"Leptolyngbya",143,1062,3271,8121,NA,NA,1,NA,NA,""
+"Limnothrix",80,676,13383,51263,NA,NA,1,NA,NA,""
+"Lyngbya",268,174,1853,5620,NA,1,1,NA,1,"Paerl et al 2016: only lists Saxitoxin for Lyngbya; not Microcystin or cylindrospermopsin"
+"Microcystis",661,2953,27974,204147,NA,NA,1,NA,NA,""
+"Oscillatoria",521,239,2929,14601,1,NA,1,NA,1,""
+"Planktolyngbya",93,305,1714,5530,NA,NA,1,NA,1,""
+"Pseudanabaena",106,323,1802,6861,1,NA,1,NA,NA,""
+"Raphidiopsis",134,74,1328,7030,1,1,NA,NA,NA,"Paerl et al 2016: also lists Saxitoxin for Raphidiopsis"
+"Snowella",26,703,2030,5357,NA,NA,1,NA,NA,""
+"Synechococcus",283,201,407,591,NA,NA,1,NA,NA,""
+"Synechocystis",187,490,2421,8951,NA,NA,1,NA,NA,""

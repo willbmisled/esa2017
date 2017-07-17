@@ -115,6 +115,7 @@ plotLMH<-function(cat=env$mic_tox_cat,target=c('mic_det','microcystin'),ef=ef07,
     - LAKE_SAMP=='Target_Sampled'
 * sum abundance by site_id and genus
 * create datasets phyto07 by spreading genus and abund; replace NA with zeros
+* create df cyano07 with the cyanobacteria data onl7
 
 ```{r data, include=FALSE, echo=FALSE, cache=FALSE} 
 #get the taxonomy data: Note: original file='C:/bryan/rscripts/lakes_database/output/nla_phyto_taxonomy.xlsx',sheet='nla_phyto_taxonomy')
@@ -138,6 +139,17 @@ t2007<-ungroup(t2007)
 #create phyto07  all phytoplankton
 phyto07<-select(t2007,-phylum)%>%spread(genus,abund) #1,148 × 255
 phyto07[is.na(phyto07)] <- 0 
+save(phyto07,file=here('data/phyto07.rda'))
+
+#create cyano07 cyanobacteria only 
+cyano07<-filter(t2007,phylum=='Cyanobacteria')%>%select(-phylum)%>%spread(genus,abund) ##1,115 × 51
+cyano07[is.na(cyano07)] <- 0
+save(cyano07,file=here('data/cyano07.rda'))
+```
+
+```{r data1, include=FALSE, echo=FALSE, cache=FALSE} 
+load(file=here('data/phyto07.rda'))
+load(file=here('data/cyano07.rda'))
 ```
 
 * decide how many dimensions to use for the NMS
@@ -149,8 +161,6 @@ phytoNMS.3<-metaMDS(phyto07[,-1],k=3,trymax=500)
 phytoNMS.4<-metaMDS(phyto07[,-1],k=4,trymax=500)
 phytoNMS.5<-metaMDS(phyto07[,-1],k=5,trymax=500)
 phytoNMS.6<-metaMDS(phyto07[,-1],k=6,trymax=500)
-
-C:/bryan/rscripts/esa2017bigdata/phytoNMS_stress_test1.rda
 
 #save(phytoNMS.2,phytoNMS.3,phytoNMS.4,file="C:/bryan/rscripts/esa2017bigdata/phytoNMS_stress_test1.rda")
 #save(phytoNMS.5,phytoNMS.6,file="C:/bryan/rscripts/esa2017bigdata/phytoNMS_stress_test2.rda")
@@ -165,10 +175,15 @@ stressplot(phytoNMS.2)
 ```
 
 * run the NMDS on the phyto abundances 
-```{r NMDS07, include=FALSE, echo=FALSE, cache=FALSE,eval=FALSE} 
+```{r NMS07, include=FALSE, echo=FALSE, cache=FALSE,eval=FALSE} 
 nms07<-metaMDS(phyto07[,-1],k=4,trymax=10000)
-save(nms07,file="C:/bryan/rscripts/esa2017bigdata/nms07.rda")
+save(nms07,file=here("data/nms07.rda"))
 ```
+
+```{r loadNMS07, include=FALSE,eval=TRUE}
+load(here("data/nms07.rda"))
+```
+
 
 * get the environmental data
 * start with the env data from the ecosphere paper
@@ -189,8 +204,8 @@ save(nms07,file="C:/bryan/rscripts/esa2017bigdata/nms07.rda")
 * add WHO standards for Chla (ug/l)
     - chla_cat: low= [0,10) med=[10,50) high=[50,inf)
 
-```{r evdata, include=FALSE}
-#load the data and data definiitions directly from github fir the ecosphere paper
+```{r evdata, include=FALSE, eval=FALSE}
+#load the data and data definiitions directly from github for the ecosphere paper
 env<-read.csv(url("https://raw.githubusercontent.com/USEPA/LakeTrophicModelling/master/inst/extdata/ltmData.csv"))
 env_df<-read.csv(url("https://raw.githubusercontent.com/USEPA/LakeTrophicModelling/master/inst/extdata/data_def.csv"))
 
@@ -327,17 +342,15 @@ dim(env) #1148   93
 
 table(names(env)%in%env_df$variable_names) #t=93
 table(env_df$variable_names%in%names(env)) #t=93
+save(env,env_df,file=here('data/env.rda'))
 ```
 
 * data definitions for the environmental data
 
 ```{r env_df, include=TRUE, echo=FALSE}
+load(here('data/env.rda'))
 kable(env_df)
 
-```
-
-```{r loadNMSdata, include=FALSE,eval=TRUE}
-load("C:/bryan/rscripts/esa2017bigdata/nms07.rda")
 ```
 
 * use envfit to compare NMDS scores and environmental gradient data
@@ -440,7 +453,7 @@ gg<-ggplot(sites) +
 ```{r pot_tox, include=TRUE, echo=FALSE}
 #add toxin producing spp
   #get the toxin producing genera
-tox<-read_excel(destfile,sheet='toxLoftin')%>%dplyr::select(-comment,-anatoxin,-nodularin) 
+tox<-read.csv(here("data/toxLoftin.csv"))%>%dplyr::select(-comment,-anatoxin,-nodularin) 
 
 #species
 spp <- as.data.frame(scores(nms07, display = "species"))
@@ -473,6 +486,9 @@ qq
 dev.off()
 
 #arrows and tox producers
+#get envfit scores
+ef.scrs <- as.data.frame(scores(ef07, display = "vectors"))
+ef.scrs <- cbind(ef.scrs, ef = rownames(ef.scrs))
 arrows<-getArrow(ef=ef07,target=c('microcystin','saxitoxin','cylindrospermopsin'),scale=6)
 
 qq<-gg1 +
@@ -609,132 +625,6 @@ dev.off()
 ```
 
 
-* color lake points by "mic_tox_cat"  #NOTE: this one works convert to function
-
-```{r mic_tox_cat, include=TRUE, echo=FALSE}
-#keep only sites with toxin producers
-keep<-cbind(sites,mic_tox_cat=env$mic_tox_cat)%>%filter(mic_tox_cat!='non')%>%mutate(size=ifelse(mic_tox_cat=='low',2,ifelse(mic_tox_cat=='med',3,4)))
-
-#add site points& arrows
-arrows<-getArrow(ef=ef07,target=c('mic_det','microcystin'),scale=7)
-
-qq<-gg+geom_point(data=keep,aes(x=NMDS1,y=NMDS2,col=factor(mic_tox_cat),size=factor(size)))+ 
-      ggtitle("microcystin")+
-      theme(plot.title = element_text(lineheight=4.8, face="bold",hjust = 0.5))+
-    #scale_color_manual(values=wes_palette(n=3, name="GrandBudapest"))
-    scale_colour_manual(name = "toxin\nlevel",
-                      labels = c("low","medium","high"),
-                      values = c("#999999", "#E69F00", "#56B4E9")) +   
-    scale_size_manual(name = "microcystin\nlevel",
-                     labels = c("low","medium","high"),
-                     values = c(2,4,6))+
-      geom_segment(data =arrows,
-               aes(x = 0, xend = NMDS1, y = 0, yend = NMDS2),
-               arrow = arrow(length = unit(0.25, "cm")), colour = "blue",lwd=3) +
-      geom_text(data = arrows, aes(x = NMDS1, y = NMDS2, label = c("mic_Level","mic_Detects")),
-            size = 5,nudge_x=c(0,0), nudge_y = c(-.1,.1)) 
-qq
-
-
-###output plot
-jpeg(here("output/nms_grp_mic_tox_cat.jpeg")) 
-qq
-dev.off()
-```
-
-* color lake points by "cyl_tox_cat"
-
-```{r cyl_tox_cat, include=TRUE, echo=FALSE}
-#keep only sites with toxin producers
-keep<-cbind(sites,cyl_tox_cat=env$cyl_tox_cat)%>%filter(cyl_tox_cat!='non')
-
-#add site points& arrows
-arrows<-getArrow(ef=ef07,target=c('cyl_det','cylindrospermopsin'),scale=6)
-
-qq<-gg+geom_point(data=keep,aes(x=NMDS1,y=NMDS2,col=factor(cyl_tox_cat)),size=2)+ 
-      ggtitle("Cylindrospermopsin")+
-      theme(plot.title = element_text(lineheight=4.8, face="bold",hjust = 0.5))+
-          scale_colour_manual(name = "Toxin\nLevel",
-                      labels = c("Low","Medium","High"),
-                      values = c("#999999", "#E69F00", "#56B4E9"))+
-      geom_segment(data =arrows,
-               aes(x = 0, xend = NMDS1, y = 0, yend = NMDS2),
-               arrow = arrow(length = unit(0.25, "cm")), colour = "blue",lwd=3) +
-      geom_text(data = arrows, aes(x = NMDS1, y = NMDS2, label = c("Cyl_Level","Cyl_Detects")),
-            size = 5,nudge_x=c(0,0), nudge_y = c(-.1,.1)) 
-  qq
-###output plot
-jpeg(here("output/nms_grp_cyl_tox_cat.jpeg")) 
-qq
-dev.off()
-```
-
-* color lake points by "sax_tox_cat"
-
-```{r sax_tox_cat, include=TRUE, echo=FALSE}
-#keep only sites with toxin producers
-keep<-cbind(sites,sax_tox_cat=env$sax_tox_cat)%>%filter(sax_tox_cat!='non')
-
-#add site points
-qq<-gg+geom_point(data=keep,aes(x=NMDS1,y=NMDS2,col=factor(sax_tox_cat)),size=2) #note size outside aes so no legend
-qq
-
-###output plot
-jpeg(here("output/nms_grp_sax_tox_cat.jpeg")) 
-qq
-dev.off()
-```
-
-* color lake points by "mic_prod_abund_cat"
-
-```{r mic_prod_abund_cat, include=TRUE, echo=FALSE}
-#keep only sites with toxin producers
-keep<-cbind(sites,mic_prod_abund_cat=env$mic_prod_abund_cat)%>%filter(mic_prod_abund_cat!='non')
-
-#define arrow
-scale<-6 
-arrow<-filter(ef.scrs,ef=='mic_prod_abund_cat')%>%
-      mutate(NMDS1=NMDS1*scale,NMDS2=NMDS2*scale)
-
-#add arrows to ggplot
-gg +
-  geom_segment(data =arrow,
-               aes(x = 0, xend = NMDS1, y = 0, yend = NMDS2),
-               arrow = arrow(length = unit(0.25, "cm")), colour = "red",lwd=3) +
-  geom_text(data = arrow, aes(x = NMDS1, y = NMDS2, label = ef),
-            size = 5)
-
-#add site points
-qq<-gg+geom_point(data=keep,aes(x=NMDS1,y=NMDS2,col=factor(mic_prod_abund_cat)),size=2)+ #note size outside aes so no legend
-  geom_segment(data =arrow,
-               aes(x = 0, xend = NMDS1, y = 0, yend = NMDS2),
-               arrow = arrow(length = unit(0.25, "cm")), colour = "red",lwd=3) +
-  geom_text(data = arrow, aes(x = NMDS1, y = NMDS2, label = ef),
-            size = 5) 
-qq
-
-###output plot
-jpeg(here("output/nms_grp_mic_prod_abund_cat.jpeg")) 
-qq
-dev.off()
-
-
-qq<-gg1 +
-  geom_segment(data =arrow,
-               aes(x = 0, xend = NMDS1, y = 0, yend = NMDS2),
-               arrow = arrow(length = unit(0.25, "cm")), colour = "red",lwd=3) +
-  geom_text(data = arrow, aes(x = NMDS1, y = NMDS2, label = ef),
-            size = 5, nudge_x=c(.4,.2,0), nudge_y = c(-.07,0,.05))
-qq
-
-```
-
-* 3d plot of scores
-
-```{r 3d, include=FALSE, eval=FALSE}
-ordirgl(nms07,col=grp2)
-```
-
 * biplot of envfit  #https://stackoverflow.com/questions/14711470/plotting-envfit-vectors-vegan-package-in-ggplot2
 
 ```{r plot_scores, include=FALSE}
@@ -743,12 +633,7 @@ sites <- as.data.frame(scores(nms07, display = "sites"))
 #add toxin detect data & WSA9
 sites<-cbind(sites,select(env,WSA_ECO9,cyl_det,mic_det,sax_det,tox_detects))
 
-#get envfit scores
-ef.scrs <- as.data.frame(scores(ef07, display = "vectors"))
-ef.scrs <- cbind(ef.scrs, ef = rownames(ef.scrs))
-
-
-scale<-6
+#scale<-6
 show1<-filter(ef.scrs,ef=='mic_det' | ef=='sax_det' | ef=='cyl_det')%>%
       mutate(NMDS1=NMDS1*scale,NMDS2=NMDS2*scale)
 
@@ -872,39 +757,4 @@ indvalsummary
 inner_join(mutate(indvalsummary,genus=rownames(indvalsummary),tox))
 
 ```
-
-library(vegan)
-library(ggplot2)
-library(grid)
-
-data(dune)
-
-# calculate distance for NMDS
-NMDS.log<-log1p(dune)
-set.seed(42)
-sol <- metaMDS(NMDS.log)
-
-scrs <- as.data.frame(scores(scores, display = "sites"))
-scrs <- cbind(scrs, Group = c("hi","hi","hi","md","lo","hi","hi","lo","md","md",
-                              "lo","lo","hi","lo","hi","md","md","lo","hi","lo"))
-
-set.seed(123)
-vf <- envfit(sol, NMDS.log, perm = 999)
-
-vf
-
-#So the r2 data is used to scale the values in columns NMDS1 and NMDS2. The final plot is produced with:
-
-spp.scrs <- as.data.frame(scores(vf, display = "vectors"))
-spp.scrs <- cbind(spp.scrs, Species = rownames(spp.scrs))
-
-p <- ggplot(scrs) +
-  geom_point(mapping = aes(x = NMDS1, y = NMDS2, colour = Group)) +
-  coord_fixed() + ## need aspect ratio of 1!
-  geom_segment(data = spp.scrs,
-               aes(x = 0, xend = NMDS1, y = 0, yend = NMDS2),
-               arrow = arrow(length = unit(0.25, "cm")), colour = "grey") +
-  geom_text(data = spp.scrs, aes(x = NMDS1, y = NMDS2, label = Species),
-            size = 3)
-
 
