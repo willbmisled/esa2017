@@ -404,8 +404,10 @@ points(nms07, disp="sites", pch=21, col="red", bg="yellow", cex=1.3)
 
 * create a table with the 2007 toxic genera
     - NOTE: Oscillatoria includes Planktothrix & Phormidium 
+* create table of tox cats
 
-```{r toxTable, include=FALSE, echo=FALSE, cache=FALSE,eval=FALSE} 
+```{r toxTables, include=FALSE, echo=FALSE, cache=FALSE,eval=FALSE} 
+#tox spp.
 a<-group_by(t2007,genus)%>%
     summarise(count = n(),
               median= round(median(abund, na.rm = TRUE)),
@@ -414,7 +416,19 @@ a<-group_by(t2007,genus)%>%
     inner_join(tox)%>%arrange(genus)%>%
       filter(cylindrospermopsin==1|microcystin==1|saxitoxin==1)
 
-write.csv(a,file=here("data/tox_table.csv"),row.names = FALSE)
+write.csv(a,file=here("output/tox_table.csv"),row.names = FALSE)
+
+#tox cats
+
+a<-as.data.frame(table(env$cyl_tox_cat))
+ct<-data.frame(toxin='cylindrospermopsin',none=a$Freq[1],low=a$Freq[2],med=a$Freq[3],high=a$Freq[4])
+a<-as.data.frame(table(env$mic_tox_cat))
+mt<-data.frame(toxin='microcystin',none=a$Freq[1],low=a$Freq[2],med=a$Freq[3],high=a$Freq[4])
+a<-as.data.frame(table(env$sax_tox_cat))
+st<-data.frame(toxin='saxitoxin',none=a$Freq[1],low=a$Freq[2],med=a$Freq[3],high=a$Freq[4])
+tt<-rbind(ct,mt,st)
+
+write.csv(tt,file=here("output/tox_cat_table.csv"),row.names = FALSE)
 ```
 
 * setup ggplot of convex hull of sites by cluster group 
