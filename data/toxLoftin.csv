@@ -1,0 +1,22 @@
+genus,anatoxin,cylindrospermopsin,microcystin,nodularin,saxitoxin,comment
+Anabaena,1,1,1,,1,
+Anabaenopsis,,,1,,,
+Aphanizomenon,1,1,,,1,
+Aphanocapsa,,,1,,,
+Coelosphaerium,,,1,,,
+Cylindrospermopsis,,1,,,1,
+Cylindrospermum,1,,,,,
+Leptolyngbya,,,1,,,
+Limnothrix,,,1,,,
+Lyngbya,,1,1,,1,Paerl et al 2016: only lists Saxitoxin for Lyngbya; not Microcystin or cylindrospermopsin
+Microcystis,,,1,,,
+Nodularia,,,,1,,
+Oscillatoria,1,,1,,1,
+Phormidium,1,,1,,,
+Planktolyngbya,,,1,,1,
+Planktothrix,1,,1,,1,
+Pseudanabaena,1,,1,,,
+Raphidiopsis,1,1,,,,Paerl et al 2016: also lists Saxitoxin for Raphidiopsis
+Snowella,,,1,,,
+Synechococcus,,,1,,,
+Synechocystis,,,1,,,

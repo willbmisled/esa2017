@@ -85,14 +85,14 @@ plotLMH<-function(cat=env$mic_tox_cat,target=c('mic_det','microcystin'),ef=ef07,
 
 #plotLMH(cat=env$cyl_tox_cat,target=c('cyl_det','cylindrospermopsin'),ef=ef07,scale=7,title='cylindrospermopsin',xnudge=c(0,0),ynudge=c(-.1,.1))
 
-qq<-plotLMH(cat=env$cyl_prod_abund_cat,target=c('cyl_det','cylindrospermopsin'),ef=ef07,scale=7,title='cylindrospermopsin',xnudge=c(0,0),ynudge=c(-.2,.1))
-qq
+#qq<-plotLMH(cat=env$cyl_prod_abund_cat,target=c('cyl_det','cylindrospermopsin'),ef=ef07,scale=7,title='cylindrospermopsin',xnudge=c(0,0),ynudge=c(-.2,.1))
+#qq
 
 
-cat=env$cyl_tox_cat;target=c('cyl_det','cylindrospermopsin');ef=ef07;scale=7;title='cylindrospermopsin';xnudge=c(0,0);ynudge=c(-.1,.1)
-cat=env$mic_tox_cat;target=c('mic_det','microcystin');ef=ef07;scale=7;title='microcystin';xnudge=c(0,0);ynudge=c(-.1,.1)
+#cat=env$cyl_tox_cat;target=c('cyl_det','cylindrospermopsin');ef=ef07;scale=7;title='cylindrospermopsin';xnudge=c(0,0);ynudge=c(-.1,.1)
+#cat=env$mic_tox_cat;target=c('mic_det','microcystin');ef=ef07;scale=7;title='microcystin';xnudge=c(0,0);ynudge=c(-.1,.1)
 
-cat=env$cyano_abund_cat,target=c('cyano_abund','cyl_det','mic_det','sax_det'),ef=ef07,scale=7,title='cyanobacteria abundance',xnudge=c(0,0,0,0),ynudge=c(.1,.1,0,0)
+#cat=env$cyano_abund_cat,target=c('cyano_abund','cyl_det','mic_det','sax_det'),ef=ef07,scale=7,title='cyanobacteria abundance',xnudge=c(0,0,0,0),ynudge=c(.1,.1,0,0)
 
 
 ```
@@ -114,25 +114,16 @@ cat=env$cyano_abund_cat,target=c('cyano_abund','cyl_det','mic_det','sax_det'),ef
     - VISIT_NO==1
     - LAKE_SAMP=='Target_Sampled'
 * sum abundance by site_id and genus
-* create datasets phyto07 and phyto12 by spreading genus and abund; replace NA with zeros
-* create presense absence datasets phyto07pa and phyto12pa replacing values of abund>0 with ones
-* create cyano07 and cyano12 by filtering for phylum=='Cyanobacteria'
-* create cyano07pa and cyano12pa
+* create datasets phyto07 by spreading genus and abund; replace NA with zeros
 
 ```{r data, include=FALSE, echo=FALSE, cache=FALSE} 
-#get the taxonomy dat
-url <- "https://raw.githubusercontent.com/willbmisled/lakes_database/master/output/nla_phyto_taxonomy.xlsx"
-destfile <- "datasets.xlsx"
-download.file(url, destfile)
-tax<-read_excel(destfile,sheet='nla_phyto_taxonomy')
+#get the taxonomy data: Note: original file='C:/bryan/rscripts/lakes_database/output/nla_phyto_taxonomy.xlsx',sheet='nla_phyto_taxonomy')
+tax<-read.csv(here("data/nla_phyto_taxonomy.csv"),na.strings=c("NA",""))%>%mutate(genus_new=ifelse(is.na(genus_new),genus,genus_new))
 
-#tax<-read_excel('C:/bryan/rscripts/lakes_database/output/nla_phyto_taxonomy.xlsx',sheet='nla_phyto_taxonomy')
-tax<-mutate(tax,genus_new=ifelse(is.na(genus_new),genus,genus_new))
-
-#get the 2007 count data
-counts<-read.csv(url('https://www.epa.gov/sites/production/files/2014-10/nla2007_phytoplankton_softalgaecount_20091023.csv'))
+#get the 2007 count data.  Data source: 'https://www.epa.gov/sites/production/files/2014-10/nla2007_phytoplankton_softalgaecount_20091023.csv'
+counts<-read.csv(here("data/nla2007_phytoplankton_softalgaecount_20091023.csv"))
     nrow(counts) #31971
-counts<-mutate(counts,GENUS=ifelse(GENUS=='Tetra\xebdron','Tetraëdron',GENUS))  #genus 'Tetraëdron' read incorrectly
+###DELETE:  counts<-mutate(counts,GENUS=ifelse(GENUS=='Tetra\xebdron','Tetraëdron',GENUS))  #genus 'Tetraëdron' read incorrectly
 
 #merge tax and counts by genus and filter
 t2007<-left_join(counts,tax,by=c("GENUS"="genus"))%>%filter(!is.na(phylum),VISIT_NO==1,LAKE_SAMP=='Target_Sampled')%>%rename(genus=genus_new)
@@ -147,51 +138,6 @@ t2007<-ungroup(t2007)
 #create phyto07  all phytoplankton
 phyto07<-select(t2007,-phylum)%>%spread(genus,abund) #1,148 × 255
 phyto07[is.na(phyto07)] <- 0 
-
-#create phyto07pa (presence/absence data)
-phyto07pa<-phyto07
-phyto07pa[,-1][phyto07pa[,-1]>0] <- 1
-
-
-#create cyano07 cyanobacteria only 
-cyano07<-filter(t2007,phylum=='Cyanobacteria')%>%select(-phylum)%>%spread(genus,abund) ##1,115 × 51
-cyano07[is.na(cyano07)] <- 0
-
-#create cyano07pa (presence/absence data)
-cyano07pa<-cyano07
-cyano07pa[,-1][cyano07pa[,-1]>0] <- 1
-
-###2012
-#get the 2012 count data
-counts<-read.csv(url('https://www.epa.gov/sites/production/files/2017-02/nla2012_wide_phytoplankton_count_02122014.csv'))
-counts<-mutate(counts,genus=ifelse(is.na(GENUS),NA,paste(toupper(substr(GENUS,1,1)),tolower(substr(GENUS,2,111)),sep="")))
-
-#merge tax and counts by genus and filter
-t2012<-left_join(counts,tax,by="genus")%>%filter(!is.na(phylum),VISIT_NO==1)%>%select(-genus)%>%rename(genus=genus_new)
-    nrow(t2012) #33376
-    
-t2012 <- group_by(t2012,SITE_ID,phylum,genus)%>%
-  summarise(abund=sum(ABUNDANCE, na.rm = TRUE))
-    names(t2012)<-tolower(names(t2012))
-        nrow(t2012) #22017
-t2012<-ungroup(t2012)
-
-#create phyto12  all phytoplankton
-phyto12<-select(t2012,-phylum)%>%spread(genus,abund) #1,133 × 269
-phyto12[is.na(phyto12)] <- 0 
-
-#create phyto12pa (presence/absence data)
-phyto12pa<-phyto12
-phyto12pa[,-1][phyto12pa[,-1]>0] <- 1
-
-#create cyano12 cyanobacteria only 
-cyano12<-filter(t2012,phylum=='Cyanobacteria')%>%select(-phylum)%>%spread(genus,abund) #1,115 × 55
-cyano12[is.na(cyano12)] <- 0
-
-#create cyano12pa (presence/absence data)
-cyano12pa<-cyano12
-cyano12pa[,-1][cyano12pa[,-1]>0] <- 1
-
 ```
 
 * decide how many dimensions to use for the NMS
@@ -204,9 +150,12 @@ phytoNMS.4<-metaMDS(phyto07[,-1],k=4,trymax=500)
 phytoNMS.5<-metaMDS(phyto07[,-1],k=5,trymax=500)
 phytoNMS.6<-metaMDS(phyto07[,-1],k=6,trymax=500)
 
-#save(phytoNMS.2,phytoNMS.3,phytoNMS.4,file=here("data/phytoNMS_stress_test1.rda"))
-#save(phytoNMS.5,phytoNMS.6,file=here("data/phytoNMS_stress_test2.rda"))
-#load(file=here("phytoNMS.rda"))
+C:/bryan/rscripts/esa2017bigdata/phytoNMS_stress_test1.rda
+
+#save(phytoNMS.2,phytoNMS.3,phytoNMS.4,file="C:/bryan/rscripts/esa2017bigdata/phytoNMS_stress_test1.rda")
+#save(phytoNMS.5,phytoNMS.6,file="C:/bryan/rscripts/esa2017bigdata/phytoNMS_stress_test2.rda")
+load(file="C:/bryan/rscripts/esa2017bigdata/phytoNMS_stress_test1.rda")
+load(file="C:/bryan/rscripts/esa2017bigdata/phytoNMS_stress_test2.rda")
 
 stress<-data.frame(dimension=2:6,stress=c(phytoNMS.2$stress,phytoNMS.3$stress,phytoNMS.4$stress,phytoNMS.5$stress,phytoNMS.6$stress))
 
@@ -215,53 +164,12 @@ plot(stress$dimension,stress$stress)
 stressplot(phytoNMS.2)
 ```
 
-* run the NMDS on the phyto abundances for 2007 and 2012
-
+* run the NMDS on the phyto abundances 
 ```{r NMDS07, include=FALSE, echo=FALSE, cache=FALSE,eval=FALSE} 
 nms07<-metaMDS(phyto07[,-1],k=4,trymax=10000)
-save(nms07,file=here("data/nms07.rda"))
+save(nms07,file="C:/bryan/rscripts/esa2017bigdata/nms07.rda")
 ```
 
-```{r NMDS12, include=FALSE, echo=FALSE, cache=FALSE,eval=FALSE} 
-nms12<-metaMDS(phyto12[,-1],k=4,trymax=10000)
-save(nms12,file=here('data/nms12.rda'))
-```
-
-* run the NMDS on phyto presence/absence for 2007 and 2012
-
-```{r NMDS07pa, include=FALSE, echo=FALSE, cache=FALSE,eval=FALSE} 
-nms07pa<-metaMDS(phyto07pa[,-1],k=4,trymax=10000)
-save(nms07pa,file=here("data/nms07pa.rda"))
-```
-
-```{r NMDS12pa, include=FALSE, echo=FALSE, cache=FALSE,eval=FALSE} 
-nms12pa<-metaMDS(phyto12pa[,-1],k=4,trymax=10000)
-save(nms12pa,file=here("data/nms12pa.rda"))
-```
-
-* run the NMDS on the cyano abundances for 2007 and 2012
-
-```{r NMDS07c, include=FALSE, echo=FALSE, cache=FALSE,eval=FALSE} 
-nms07c<-metaMDS(cyano07[,-1],k=4,trymax=10000)
-save(nms07c,file=here("data/nms07c.rda"))
-```
-
-```{r NMDS12c, include=FALSE, echo=FALSE, cache=FALSE,eval=FALSE} 
-nms12c<-metaMDS(cyano12[,-1],k=4,trymax=10000)
-save(nms12c,file=here('data/nms12c.rda'))
-```
-
-* run the NMDS on cyano presence/absence for 2007 and 2012
-
-```{r NMDS07pac, include=FALSE, echo=FALSE, cache=FALSE,eval=FALSE} 
-nms07pac<-metaMDS(cyano07pa[,-1],k=4,trymax=10000)
-save(nms07pac,file=here("data/nms07pac.rda"))
-```
-
-```{r NMDS12pac, include=FALSE, echo=FALSE, cache=FALSE,eval=FALSE} 
-nms12pac<-metaMDS(cyano12pa[,-1],k=4,trymax=10000)
-save(nms12pac,file=here("data/nms12pac.rda"))
-```
 * get the environmental data
 * start with the env data from the ecosphere paper
 * add Keith Loftins Toxin data
@@ -352,8 +260,8 @@ env_df<-rbind(data.frame(variable_names=c("cyano_abund","cyano_abund_cat"),descr
 # add cat for cell counts of possible toxin producers
     # cyl_prod_abund_cat: none=[0,1), low= [0,20k); med=[20k,100k); high=[100k,inf)  
 
-#get the toxin producing genera
-tox<-read_excel(destfile,sheet='toxLoftin')%>%select(-comment,-anatoxin,-nodularin) 
+#get the toxin producing genera: Note: original file='C:/bryan/rscripts/lakes_database/output/nla_phyto_taxonomy.xlsx',sheet='toxLoftin')
+tox<-read.csv(here("data/toxLoftin.csv"))
 
 cyl<-filter(tox,cylindrospermopsin==1)
 cyl_prod<-select_(cyano07,.dots=c('site_id',names(cyano07)[names(cyano07)%in%cyl$genus]))
@@ -429,7 +337,7 @@ kable(env_df)
 ```
 
 ```{r loadNMSdata, include=FALSE,eval=TRUE}
-load(here("data/nms07.rda"))
+load("C:/bryan/rscripts/esa2017bigdata/nms07.rda")
 ```
 
 * use envfit to compare NMDS scores and environmental gradient data
