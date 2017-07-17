@@ -1,0 +1,16 @@
+---
+title: "temp"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(here)
+```
+
+```{r loadNMSdata, include=FALSE,eval=TRUE}
+temp<-c(1:10)
+save(temp,file=here('data/temp.rda'))
+load(here("data/temp.rda"))
+```
+
