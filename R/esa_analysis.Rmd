@@ -705,13 +705,20 @@ varImpPlot(rf_grp2_phyto07,type=1) #mean decrease in accuracy
 * random forest analysis of cyano variables to predict grp2
 
 ```{r rfcyano_anal, include=FALSE, eval=FALSE}
-lake_group1<-as.factor(grp2) 
+#missing values for cyano07 need to be dealt with
+grp2a<-data.frame(site_id=env$site_id,grp2)
+grp2b<-inner_join(grp2a,cyano07)
+
+
+lake_group1<-as.factor(grp2b$grp2) 
 set.seed(1956)
 rf_grp2_cyano07<-randomForest(cyano07[,-1],lake_group1,ntree=10000,importance=TRUE,proximity=TRUE)
-save(rf_grp2_cyano07,file="C:/bryan/rscripts/esa2017bigdata/rf_grp2_cyano07.rda")
+#save(rf_grp2_cyano07,file="C:/bryan/rscripts/esa2017bigdata/rf_grp2_cyano07.rda")
+save(rf_grp2_cyano07,file=here("data/rf_grp2_cyano07.rda"))
 ```
 
-```{r rfcyano_present, include=FALSE, eval=FALSE}
+```{r rfcyano_present, include=FALSE, eval=TRUE}
+
 load("C:/bryan/rscripts/esa2017bigdata/rf_grp2_cyano07.rda")
 varImpPlot(rf_grp2_cyano07,type=2) #mean decrease in node impurity
 varImpPlot(rf_grp2_cyano07,type=1) #mean decrease in accuracy
