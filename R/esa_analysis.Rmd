@@ -117,7 +117,7 @@ plotLMH<-function(cat=env$mic_tox_cat,target=c('mic_det','microcystin'),ef=ef07,
 * create datasets phyto07 by spreading genus and abund; replace NA with zeros
 * create df cyano07 with the cyanobacteria data onl7
 
-```{r data, include=FALSE, echo=FALSE, cache=FALSE} 
+```{r data, include=FALSE, echo=FALSE, eval=FALSE} 
 #get the taxonomy data: Note: original file='C:/bryan/rscripts/lakes_database/output/nla_phyto_taxonomy.xlsx',sheet='nla_phyto_taxonomy')
 tax<-read.csv(here("data/nla_phyto_taxonomy.csv"),na.strings=c("NA",""))%>%mutate(genus_new=ifelse(is.na(genus_new),genus,genus_new))
 
@@ -338,6 +338,23 @@ env<-left_join(env,site)
 env<-left_join(select(phyto07,site_id),env) 
 table(phyto07$site_id==env$site_id) #check for site_id match-all TRUE
 
+#replace NA cat variables with "none"
+table(env$cyl_tox_cat,useNA='ifany')
+table(env$mic_tox_cat,useNA='ifany')
+table(env$sax_tox_cat,useNA='ifany')
+
+table(env$cyano_abund_cat,useNA='ifany')
+table(env$cyl_prod_abund_cat,useNA='ifany')
+table(env$mic_prod_abund_cat,useNA='ifany')
+table(env$sax_prod_abund_cat,useNA='ifany')
+table(env$chla_cat,useNA='ifany')   #these are legit.  Leave
+table(is.na(env$chla)) 
+
+env$cyano_abund_cat[is.na(env$cyano_abund_cat)]<-'none'
+env$cyl_prod_abund_cat[is.na(env$cyl_prod_abund_cat)]<-'none'
+env$mic_prod_abund_cat[is.na(env$mic_prod_abund_cat)]<-'none'
+env$sax_prod_abund_cat[is.na(env$sax_prod_abund_cat)]<-'none'
+
 dim(env) #1148   93
 
 table(names(env)%in%env_df$variable_names) #t=93
@@ -366,7 +383,7 @@ load(here("data/ef07.rda"))
 
 * Cluster Analysis
 
-```{r cluster, include=FALSE}
+```{r cluster, include=FALSE,eval=FALSE}
 dist07<-vegdist(nms07$points[,1:2],method="euclidean")
 
 clus07com<-hclust(dist07,"complete")
@@ -389,6 +406,8 @@ table(grp2)
 table(grp3)
 table(grp4)
 
+save(grp2,file=here("data/grp2.rda"))
+
 ###Plot of NMS color coded for clusters
 fig<-ordiplot(nms07,type="none",main="nms07")
 points(fig,"sites",pch=16,cex=0.7,col=grp3)
@@ -399,7 +418,10 @@ ordiellipse(nms07,grp2,col=1:3,kind='ehull')
 ordiellipse(nms07,grp2,col=1:3,draw="polygon")
 ordispider(nms07,grp2,col=1:3,label=TRUE)
 points(nms07, disp="sites", pch=21, col="red", bg="yellow", cex=1.3)
+```
 
+```{r cluster, include=FALSE,eval=TRUE}
+load(here("data/grp2.rda"))
 ```
 
 * create a table with the 2007 toxic genera
