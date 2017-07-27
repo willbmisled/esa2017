@@ -875,39 +875,31 @@ dev.off()
 
 * Indicator Species Analysis
 
-```{r ind_spp, include=FALSE}
+```{r ind_spp, include=FALSE,eval=FALSE}
 #http://rfunctions.blogspot.com/2013/02/multivariate-analysis-indicator-value.html
 #http://biol09.biol.umontreal.ca/Beijing_Linear_model/Indicator_species.pdf
 
 ind_spp<-labdsv::indval(phyto07[,-1],grp2)
 
-rf <- ind_spp$relfrq;names(rf)<-c('relfreq1','relfreq2')
-ra <- ind_spp$relabu;names(ra)<-c('relabund1','relabund2')
-gr <- ind_spp$maxcls
-iv <- ind_spp$indcls
-pv <- ind_spp$pval
-fr <- apply(phyto07[,-1]>0, 2, sum)
+rf <- ind_spp$relfrq;names(rf)<-c('relfreq1','relfreq2')  #[ind_spp$pval<=0.05]
+ra <- ind_spp$relabu;names(ra)<-c('relabund1','relabund2') #[ind_spp$pval<=0.05]
+gr <- ind_spp$maxcls #[ind_spp$pval<=0.05]
+iv <- ind_spp$indcls #[ind_spp$pval<=0.05]
+pv <- ind_spp$pval #[ind_spp$pval<=0.05]
+fr <- apply(phyto07[,-1]>0, 2, sum) #[ind_spp$pval<=0.05]
 indvalsummary <- data.frame(group=gr, indval=iv, pvalue=pv, freq=fr,rf,ra)
 indvalsummary <- indvalsummary[order(indvalsummary$group, -indvalsummary$indval),]
 
+indvalsummary <-rownames_to_column(indvalsummary)%>%rename(genus=rowname)
+indvalsummary[-1]<-round(indvalsummary[-1],3)
 
-
-
-gr <- ind_spp$maxcls[ind_spp$pval<=0.05]
-iv <- ind_spp$indcls[ind_spp$pval<=0.05]
-pv <- ind_spp$pval[ind_spp$pval<=0.05]
-fr <- apply(phyto07[,-1]>0, 2, sum)[ind_spp$pval<=0.05]
-indvalsummary <- data.frame(sp=row.names(ind_spp),group=gr, indval=iv, pvalue=pv, freq=fr)
-indvalsummary <- indvalsummary[order(indvalsummary$group, -indvalsummary$indval),]
-
-head(rownames_to_column(indvalsummary))
 head(indvalsummary)
 
 # Let us see the results
 indvalsummary
 
 #what about the toxins
-indvalsummary_tox<-inner_join(mutate(indvalsummary,genus=rownames(indvalsummary)),tox)
+indvalsummary_tox<-inner_join(indvalsummary,tox)
 
 #output the data
 write.csv(indvalsummary,here('output/indval.csv'),row.names = FALSE)
