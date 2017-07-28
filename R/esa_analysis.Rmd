@@ -145,8 +145,11 @@ phyto07[is.na(phyto07)] <- 0
     #save the taxonomist_cnt data to add to env below
       taxonomist<-select(phyto07,site_id,taxonomist=taxonomist_cnt)%>%mutate(taxonomist=ifelse(taxonomist=="Dawn Perkins","DP",taxonomist))
     #remove taxonomist_cnt
-phyto07<-select(phyto07,-taxonomist_cnt) #1,148 × 256
-save(phyto07,taxonomist,file=here('data/phyto07.rda'))
+      
+#create a ds without taxonomist=='JS'
+phyto07js<-filter(phyto07,taxonomist_cnt!='JS')%>%select(-taxonomist_cnt) #764 255
+phyto07<-select(phyto07,-taxonomist_cnt) #1,148 × 255
+save(phyto07,phyto07js,taxonomist,file=here('data/phyto07.rda'))
 
 #create cyano07 cyanobacteria only 
 cyano07<-filter(t2007,phylum=='Cyanobacteria')%>%select(-phylum)%>%spread(genus,abund) ##1,115 × 51
@@ -185,6 +188,12 @@ stressplot(phytoNMS.2)
 ```{r NMS07, include=FALSE, echo=FALSE, cache=FALSE,eval=FALSE} 
 nms07<-metaMDS(phyto07[,-1],k=4,trymax=10000)
 save(nms07,file=here("data/nms07.rda"))
+```
+
+* run the NMDS on the phyto abundances 
+```{r NMS07, include=FALSE, echo=FALSE, cache=FALSE,eval=FALSE} 
+nms07js<-metaMDS(phyto07[,-1],k=4,trymax=10000,parallel=32)
+save(nms07js,file=here("data/nms07js.rda"))
 ```
 
 ```{r loadNMS07, include=FALSE,eval=TRUE}
