@@ -190,12 +190,6 @@ nms07<-metaMDS(phyto07[,-1],k=4,trymax=10000)
 save(nms07,file=here("data/nms07.rda"))
 ```
 
-* run the NMDS on the phyto abundances 
-```{r NMS07, include=FALSE, echo=FALSE, cache=FALSE,eval=FALSE} 
-nms07js<-metaMDS(phyto07[,-1],k=4,trymax=10000,parallel=32)
-save(nms07js,file=here("data/nms07js.rda"))
-```
-
 ```{r loadNMS07, include=FALSE,eval=TRUE}
 load(here("data/nms07.rda"))
 ```
@@ -474,6 +468,23 @@ a<-group_by(t2007,genus)%>%
       filter(cylindrospermopsin==1|microcystin==1|saxitoxin==1)
 
 write.csv(a,file=here("output/tox_table.csv"),row.names = FALSE)
+
+```
+
+* Plot the first two NMDS score
+
+```{r plotNMDS, include=FALSE}
+qq<-ggplot(sites) + geom_point(aes(x=NMDS1,y=NMDS2)) + ggtitle("Initial Plot of NMDS Scores")+
+  theme(plot.title = element_text(lineheight=4.8, face="bold",hjust = 0.5))
+                               
+  
+  
+qq
+
+###output plot
+jpeg(here("output/nms_scores.jpeg")) 
+qq
+dev.off()
 
 ```
 
