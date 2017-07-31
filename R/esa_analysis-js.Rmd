@@ -570,14 +570,24 @@ summary(a$microcystin[grp4==2])
 #http://rfunctions.blogspot.com/2013/02/multivariate-analysis-indicator-value.html
 #http://biol09.biol.umontreal.ca/Beijing_Linear_model/Indicator_species.pdf
 
-ind_spp<-labdsv::indval(phyto07js[,-1],grp2)
+#remove spp that sum_abundance==0
 
-rf <- ind_spp$relfrq;names(rf)<-c('relfreq1','relfreq2')  #[ind_spp$pval<=0.05]
-ra <- ind_spp$relabu;names(ra)<-c('relabund1','relabund2') #[ind_spp$pval<=0.05]
+a<-apply(phyto07js[-1],2,sum)
+b<-names(which(a==0))
+x<-which(names(phyto07js)%in%b)
+
+keep<-phyto07js[,-x]
+
+ind_spp<-labdsv::indval(keep[,-1],grp4)
+
+
+
+rf <- ind_spp$relfrq;names(rf)<-c('relfreq1','relfreq2','relfreq3','relfreq4')  #[ind_spp$pval<=0.05]
+ra <- ind_spp$relabu;names(ra)<-c('relabund1','relabund2','relabund3','relabund4') #[ind_spp$pval<=0.05]
 gr <- ind_spp$maxcls #[ind_spp$pval<=0.05]
 iv <- ind_spp$indcls #[ind_spp$pval<=0.05]
 pv <- ind_spp$pval #[ind_spp$pval<=0.05]
-fr <- apply(phyto07[,-1]>0, 2, sum) #[ind_spp$pval<=0.05]
+fr <- apply(keep[,-1]>0, 2, sum) #[ind_spp$pval<=0.05]
 indvalsummary <- data.frame(group=gr, indval=iv, pvalue=pv, freq=fr,rf,ra)
 indvalsummary <- indvalsummary[order(indvalsummary$group, -indvalsummary$indval),]
 
@@ -601,8 +611,8 @@ write.csv(indvalsummary_tox,here('output/js_indval_tox.csv'),row.names = FALSE)
 * Calc summary stats for the lake groups
 
 ```{r ind_spp, include=FALSE}
-joy<-cbind(env,grp2)
-grp_sum<-group_by(joy,grp2)%>%
+joy<-cbind(env,grp4)
+grp_sum<-group_by(joy,grp4)%>%
   summarise(mean_NTL=mean(NTL, na.rm = TRUE),
             mean_PTL=mean(PTL, na.rm = TRUE),
             mean_chla=mean(chla, na.rm = TRUE),
@@ -618,9 +628,11 @@ grp_sum<-group_by(joy,grp2)%>%
 
 #function to get the percent detects by group for the toxins
 getCnt<-function(q=joy$mic_det){
-x<-as.matrix(table(joy$grp2,q))
+x<-as.matrix(table(joy$grp4,q))
 y<-c(round(100*x[1,2]/(x[1,1]+x[1,2]),1),
-round(100*x[2,2]/(x[2,1]+x[2,2]),1))
+    round(100*x[2,2]/(x[2,1]+x[2,2]),1),
+    round(100*x[3,2]/(x[3,1]+x[3,2]),1),
+    round(100*x[4,2]/(x[4,1]+x[4,2]),1))
 return(y)}
 
 grp_sum$mic_per_det<-getCnt(joy$mic_det)
