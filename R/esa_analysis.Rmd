@@ -423,7 +423,11 @@ cor(dist07, cophenetic(clus07com)) #0.6585126
 cor(dist07, cophenetic(clus07sin)) #0.5396457
 cor(dist07, cophenetic(clus07ave)) #0.7734899
 
-plot(clus07ave)
+jpeg(here("output/nms_cluster.jpeg")) 
+plot(clus07ave,hang=-1,main="Cluster Analysis of NMDS Scores")
+dev.off()
+
+plot(clus07ave,axes=FALSE,xlab=NA,ylab=NA,main="Cluster Analysis of NMDS Scores")
 rect.hclust(clus07ave,3)
 
 grp2<-cutree(clus07ave,2)
@@ -474,12 +478,10 @@ write.csv(a,file=here("output/tox_table.csv"),row.names = FALSE)
 * Plot the first two NMDS score
 
 ```{r plotNMDS, include=FALSE}
-qq<-ggplot(sites) + geom_point(aes(x=NMDS1,y=NMDS2)) + ggtitle("Initial Plot of NMDS Scores")+
+qq<-ggplot(sites,aes(x=NMDS1,y=NMDS2)) + geom_point(colour="#31688EFF",size=3) + ggtitle("Initial Plot of NMDS Scores")+
   theme(plot.title = element_text(lineheight=4.8, face="bold",hjust = 0.5))
                                
-  
-  
-qq
+qq 
 
 ###output plot
 jpeg(here("output/nms_scores.jpeg")) 
