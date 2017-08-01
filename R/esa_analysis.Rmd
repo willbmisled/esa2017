@@ -496,13 +496,45 @@ dev.off()
 
 ```
 
+* Plot the first two NMDS score colored by taxonomist
+
+```{r plotNMDS, include=FALSE}
+n<-6  #number of colors
+#type<-"discrete"
+type<-"continuous"
+
+#pal<-c(2:7)
+pal<-viridis_pal()(n)
+#pal<-wes_palette("Zissou", n, type =type)
+#pal<-wes_palette("FantasticFox", n, type =type)
+#pal<-wes_palette("Darjeeling", n, type =type)
+
+qq<-ggplot(sites,aes(x=NMDS1,y=NMDS2)) + geom_point(aes(x=NMDS1,y=NMDS2,col=factor(taxonomist_cat)),size=3) + ggtitle("NMDS Scores Colored by Taxonomist")+
+  scale_color_manual(values=pal,                          #c("red", "blue","orange"), 
+                  name="Taxonomist",
+                  breaks=c('DP', 'EEW', 'JKE',  'JS', 'KMM',  'MH' ),
+                  labels=c('DP', 'EEW', 'JKE',  'JS', 'KMM',  'MH' ))+
+  theme(plot.title = element_text(lineheight=4.8, face="bold",hjust = 0.5))
+
+
+                               
+qq 
+
+###output plot
+jpeg(here("output/nms_grp_taxonomist.jpeg")) 
+qq
+dev.off()
+
+```
+
+
 * setup ggplot of convex hull of sites by cluster group 
 
 ```{r ggHull, include=FALSE}
 #sites from NMS
 sites <- as.data.frame(scores(nms07, display = "sites"))
 #add toxin detect data & WSA9
-sites<-cbind(sites,select(env,WSA_ECO9,cyl_det,mic_det,sax_det,tox_detects,lake_origin,chla_cat))
+sites<-cbind(sites,select(env,WSA_ECO9,cyl_det,mic_det,sax_det,tox_detects,lake_origin,chla_cat,taxonomist_cat))
 
 #select group
 group<-grp2
@@ -684,6 +716,7 @@ jpeg(here("output/nms_grp_community_type.jpeg"))
 qq
 dev.off()
 ```
+
 
 * color lake points by "lake_origin"
 
