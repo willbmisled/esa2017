@@ -8,6 +8,7 @@ library(maps)
 #get env data & lake grouping
 load(file=here('data/env.rda'))
 load(here("data/js_grps.rda"))
+load(file=here('data/phyto07.rda'))
 
 #restrict env to non-js lakes
 env<-filter(env,site_id%in%phyto07js$site_id)
@@ -23,7 +24,7 @@ p4s<-"+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=37.5 +lon_0=-96 +x_0=0 +y_0=0 +el
 ll<-"+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs" 
 lakes_alb_sp<-SpatialPoints(coordinates(lakes_alb),proj4string=CRS(p4s))
 lakes_dd<-spTransform(lakes_alb_sp,CRS=CRS(ll))
-lakes_dd<-data.frame(coordinates(lakes_dd),cats,grp2)
+lakes_dd<-data.frame(coordinates(lakes_dd),cats,grp2,grp4)
 names(lakes_dd)[1:2]<-c("long","lat")
 
 #state map
@@ -54,6 +55,41 @@ mapIt<-function(Cat,Colors,Breaks,Labels,Title){
  return(gg)
 }
 
+
+#map Community Type
+Cat<-lakes_dd$grp4
+Colors<-(viridis_pal()(4)) #scales::show_col(Colors)
+Breaks<-c(1,2,3,4)
+Title<-'Community Type'
+#Label
+tl<-as.data.frame(table(lakes_dd$grp4,useNA='ifany'))
+Labels<-c(paste("Community Type One; N = ",tl[1,2],sep=""),paste("Community Type Two; N = ",tl[2,2],sep=""),paste("Community Type Three; N = ",tl[3,2],sep=""),paste("Community Type Four; N = ",tl[4,2],sep=""))
+
+mapIt(Cat,Colors,Breaks,Labels,Title)
+
+ggsave(here('output/js_map_commumnity_type.jpeg'))
+
+
+#map taxonomist
+Cat<-lakes_dd$taxonomist_cat
+Colors<-(viridis_pal()(5)) #scales::show_col(Colors)
+Breaks<-c('DP', 'EEW', 'JKE', 'KMM',  'MH')
+Title<-'Taxonomist'
+#Label
+tl<-as.data.frame(table(lakes_dd$taxonomist_cat,useNA='ifany'))
+Labels<-c('DP', 'EEW', 'JKE',   'KMM',  'MH')
+
+
+
+
+mapIt(Cat,Colors,Breaks,Labels,Title)
+
+ggsave(here('output/js_map_taxonomist.jpeg'))
+
+
+table(lakes_dd$grp4,lakes_dd$taxonomist_cat)
+#####old below
+
 #map cyano_abund_cat
 Cat<-lakes_dd$cyano_abund_cat
 Colors<-viridis_pal()(4) #scales::show_col(Colors)
@@ -68,7 +104,7 @@ Labels<-c(paste(tl[1,1],"; 0 cells/ml; N = ",tl[1,2],sep=""),
 
 mapIt(Cat,Colors,Breaks,Labels,Title)
 
-ggsave(here('output/map_cyano_abund_cat.jpeg'))
+ggsave(here('output/js_map_cyano_abund_cat.jpeg'))
 
 #map Community Type
 Cat<-lakes_dd$grp2
@@ -81,7 +117,7 @@ Labels<-c(paste("Community Type One; N = ",tl[1,2],sep=""),paste("Community Type
           
 mapIt(Cat,Colors,Breaks,Labels,Title)
 
-ggsave(here('output/map_commumnity_type.jpeg'))
+ggsave(here('output/js_map_commumnity_type.jpeg'))
 
 #map taxonomist
 Cat<-lakes_dd$taxonomist_cat
@@ -97,7 +133,7 @@ Labels<-c('DP', 'EEW', 'JKE',  'JS', 'KMM',  'MH')
 
 mapIt(Cat,Colors,Breaks,Labels,Title)
 
-ggsave(here('output/map_taxonomist.jpeg'))
+ggsave(here('output/js_map_taxonomist.jpeg'))
 
 #map taxonomist-JS
 #add category for Taxonomist = JS
@@ -117,7 +153,7 @@ c(paste("Community Type One; N = ",tl[1,2],sep=""),paste("Community Type Two; N 
 
 mapIt(Cat,Colors,Breaks,Labels,Title)
 
-ggsave(here('output/map_taxonomist_js.jpeg'))
+ggsave(here('output/js_map_taxonomist_js.jpeg'))
 
 #map chla_cat
 Cat<-lakes_dd$chla_cat
@@ -132,7 +168,7 @@ Labels<-c(paste(tl[1,1],"; < 10 ug/l; N = ",tl[1,2],sep=""),
 
 mapIt(Cat,Colors,Breaks,Labels,Title)
 
-ggsave(here('output/map_chla_cat.jpeg'))
+ggsave(here('output/js_map_chla_cat.jpeg'))
 
 #map cyl_tox_cat
 Cat<-lakes_dd$cyl_tox_cat
@@ -148,13 +184,13 @@ Labels<-c(paste("non-detect; N = ",tl[1,2],sep=""),
 
 mapIt(Cat,Colors,Breaks,Labels,Title)
 
-ggsave(here('output/map_cyl_tox_cat.jpeg'))
+ggsave(here('output/js_map_cyl_tox_cat.jpeg'))
 
 #map cyl_tox_cat without non-detects
 Colors[1]<-NA
 mapIt(Cat,Colors,Breaks,Labels,Title)
 
-ggsave(here('output/map_cyl_tox_cat1.jpeg'))
+ggsave(here('output/js_map_cyl_tox_cat1.jpeg'))
 
 #map mic_tox_cat
 Cat<-lakes_dd$mic_tox_cat
@@ -170,13 +206,13 @@ Labels<-c(paste("non-detect; N = ",tl[1,2],sep=""),
 
 mapIt(Cat,Colors,Breaks,Labels,Title)
 
-ggsave(here('output/map_mic_tox_cat.jpeg'))
+ggsave(here('output/js_map_mic_tox_cat.jpeg'))
 
 #map mic_tox_cat without non-detects
 Colors[1]<-NA
 mapIt(Cat,Colors,Breaks,Labels,Title)
 
-ggsave(here('output/map_mic_tox_cat1.jpeg'))
+ggsave(here('output/js_map_mic_tox_cat1.jpeg'))
 
 #map sax_tox_cat
 Cat<-lakes_dd$sax_tox_cat
@@ -192,13 +228,13 @@ Labels<-c(paste("non-detect; N = ",tl[1,2],sep=""),
 
 mapIt(Cat,Colors,Breaks,Labels,Title)
 
-ggsave(here('output/map_sax_tox_cat.jpeg'))
+ggsave(here('output/js_map_sax_tox_cat.jpeg'))
 
 #map sax_tox_cat without non-detects
 Colors[1]<-NA
 mapIt(Cat,Colors,Breaks,Labels,Title)
 
-ggsave(here('output/map_sax_tox_cat1.jpeg'))
+ggsave(here('output/js_map_sax_tox_cat1.jpeg'))
 
 #map cyl_prod_abund_cat
 Cat<-lakes_dd$cyl_prod_abund_cat
@@ -214,7 +250,7 @@ Labels<-c(paste(tl[1,1],"; 0 cells/ml; N = ",tl[1,2],sep=""),
 
 mapIt(Cat,Colors,Breaks,Labels,Title)
 
-ggsave(here('output/map_cyl_prod_abund_cat.jpeg'))
+ggsave(here('output/js_map_cyl_prod_abund_cat.jpeg'))
 
 #map cyl_prod_abund_cat without non-detects
 Colors[1]<-NA
@@ -236,7 +272,7 @@ Labels<-c(paste(tl[1,1],"; 0 cells/ml; N = ",tl[1,2],sep=""),
 
 mapIt(Cat,Colors,Breaks,Labels,Title)
 
-ggsave(here('output/map_mic_prod_abund_cat.jpeg'))
+ggsave(here('output/js_map_mic_prod_abund_cat.jpeg'))
 
 #map mic_prod_abund_cat without non-detects
 Colors[1]<-NA
@@ -258,13 +294,13 @@ Labels<-c(paste(tl[1,1],"; 0 cells/ml; N = ",tl[1,2],sep=""),
 
 mapIt(Cat,Colors,Breaks,Labels,Title)
 
-ggsave(here('output/map_sax_prod_abund_cat.jpeg'))
+ggsave(here('output/js_map_sax_prod_abund_cat.jpeg'))
 
 #map sax_prod_abund_cat without non-detects
 Colors[1]<-NA
 mapIt(Cat,Colors,Breaks,Labels,Title)
 
-ggsave(here('output/map_sax_prod_abund_cat1.jpeg'))
+ggsave(here('output/js_map_sax_prod_abund_cat1.jpeg'))
 
 
 

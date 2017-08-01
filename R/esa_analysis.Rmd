@@ -433,13 +433,19 @@ rect.hclust(clus07ave,3)
 grp2<-cutree(clus07ave,2)
 grp3<-cutree(clus07ave,3)
 grp4<-cutree(clus07ave,4)
+grp5<-cutree(clus07ave,5)
+grp6<-cutree(clus07ave,6)
+grp7<-cutree(clus07ave,7)
 
 
 table(grp2)
 table(grp3)
 table(grp4)
+table(grp5)
+table(grp6)
+table(grp7)
 
-save(grp2,file=here("data/grp2.rda"))
+save(grp2,grp3,grp4,grp5,grp6,grp7,file=here("data/grps.rda"))
 
 ###Plot of NMS color coded for clusters
 fig<-ordiplot(nms07,type="none",main="nms07")

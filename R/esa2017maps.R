@@ -6,7 +6,7 @@ library(rgdal)
 
 #get env data & lake grouping
 load(file=here('data/env.rda'))
-load(here("data/grp2.rda"))
+load(here("data/grps.rda"))
 
 #subset env$*_cat fields
 cats<-env[,c(1,grep("_cat",names(env)))]
@@ -18,7 +18,7 @@ p4s<-"+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=37.5 +lon_0=-96 +x_0=0 +y_0=0 +el
 ll<-"+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs" 
 lakes_alb_sp<-SpatialPoints(coordinates(lakes_alb),proj4string=CRS(p4s))
 lakes_dd<-spTransform(lakes_alb_sp,CRS=CRS(ll))
-lakes_dd<-data.frame(coordinates(lakes_dd),cats,grp2)
+lakes_dd<-data.frame(coordinates(lakes_dd),cats,grp2,grp3,grp4,grp5,grp6,grp7)
 names(lakes_dd)[1:2]<-c("long","lat")
 
 #state map
@@ -260,6 +260,38 @@ Colors[1]<-NA
 mapIt(Cat,Colors,Breaks,Labels,Title)
 
 ggsave(here('output/map_sax_prod_abund_cat1.jpeg'))
+
+#grp6
+table(lakes_dd$grp6,lakes_dd$taxonomist_cat)
+
+
+#map Community Type
+Cat<-lakes_dd$grp6
+Colors<-(viridis_pal()(6)) #scales::show_col(Colors)
+Breaks<-c(1:6)
+Title<-'Community Type'
+#Label
+tl<-as.data.frame(table(lakes_dd$grp2,useNA='ifany'))
+Labels<-c(paste("Community Type One; N = ",tl[1,2],sep=""),
+          paste("Community Type Two; N = ",tl[2,2],sep=""),
+          paste("Community Type Three; N = ",tl[3,2],sep=""),
+          paste("Community Type Four; N = ",tl[4,2],sep=""),
+          paste("Community Type Five; N = ",tl[5,2],sep=""),
+          paste("Community Type Six; N = ",tl[6,2],sep=""))
+
+mapIt(Cat,Colors,Breaks,Labels,Title)
+
+ggsave(here('output/map_commumnity_type6.jpeg'))
+
+#map taxonomist
+Cat<-lakes_dd$taxonomist_cat
+Colors<-(viridis_pal()(6)) #scales::show_col(Colors)
+Breaks<-c('DP', 'EEW', 'JKE',  'JS', 'KMM',  'MH')
+Title<-'Taxonomist'
+#Label
+tl<-as.data.frame(table(lakes_dd$taxonomist_cat,useNA='ifany'))
+Labels<-c('DP', 'EEW', 'JKE',  'JS', 'KMM',  'MH')
+
 
 
 
