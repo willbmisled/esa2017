@@ -1,0 +1,970 @@
+---
+title: "esa_analysis"
+author: "Bryan Milstead"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+options(stringsAsFactors = FALSE) 
+library(knitr)
+library(vegan)
+#library(vegan3d)
+library(ecodist)
+library(readxl)
+library(ggplot2)
+library(randomForest)
+#library(labdsv) #this messes with the tidyverse; call explicitly in the indicator species analysis
+library(tidyverse)
+library(here)
+library(wesanderson)
+library(hrbrthemes)  #+ theme_ipsum()
+library(viridis)
+```
+
+```{r functions, include=FALSE}
+#functions to see names in alphabetical order
+  names1<-function(df) names(df)[order(names(df))]
+
+#function to select enviro fit results for biplot arrow
+    #ef=environmental factor
+    #target=selected factors
+    #scale=scale factor for arrow
+getArrow<-function(ef=ef07,target=c('microcystin','saxitoxin','cylindrospermopsin'),scale=6){
+  scrs <- as.data.frame(scores(ef, display = "vectors")) 
+  scrs <- cbind(scrs, ef = rownames(scrs))
+  arrow<-filter(scrs,ef%in%target)%>%
+      mutate(NMDS1=NMDS1*scale,NMDS2=NMDS2*scale)
+  return(arrow)
+}
+
+#function to plot Low Medium and High categories with envfit arrows
+    #requires the site NMDS scores df "sites"
+    #requires a ggplot object with the lake grps='gg'
+  #cat=environmental data with low, med, and high categories. e.g., cat=env$mic_tox_cat
+  #ef=envirofit df for biplot arrow. e.g., ef=ef07
+  #target=ef arrows to plot. e,g., target=c('mic_det','microcystin')
+  #scale= scaling factor for biplot arrows
+  #title=title for the plot
+  #xnudge=x adjustment for arrow label; note this is a vector with an adjustment level for each arrrow. e.g., xnudge=c(0,0)
+  #ynudge=y adjustment for arrow label; note this is a vector with an adjustment level for each arrrow. e.g., ynudge=c(0,0)
+  #angle to adjust arrow annotations
+  
+
+plotLMH<-function(cat=env$mic_tox_cat,target=c('mic_det','microcystin'),ef=ef07,scale=7,title='microcystin',xnudge=c(0,0),ynudge=c(0,0),angle=0){
+  #combine cat variable, NMDS scores, and size variable for the point
+    keep<-cbind(sites,cat=cat)%>%filter(cat!='none')%>%mutate(Size=ifelse(cat=='low',2,ifelse(cat=='med',3,4)))
+  #define the biplot arrows
+    scrs <- as.data.frame(scores(ef07, display = "vectors")) 
+    scrs <- cbind(scrs, ef = rownames(ef.scrs))
+    arrow<-filter(scrs,ef%in%target)%>%
+      mutate(NMDS1=NMDS1*scale,NMDS2=NMDS2*scale)
+  #plot the cat in NMDS space
+    qq<-gg+geom_point(data=keep,aes(x=NMDS1,y=NMDS2,col=factor(cat),size=factor(Size)))+ 
+      ggtitle(title)+
+      theme(plot.title = element_text(lineheight=4.8, face="bold",hjust = 0.5))+
+      #scale_color_manual(values=wes_palette(n=3, name="GrandBudapest"))
+      scale_colour_manual(name = "Category\nLevel",
+                          labels = c("low","medium","high"),
+                          values = viridis_pal()(3)) +   #c("#999999", "#E69F00", "#56B4E9")
+      scale_size_manual(name = "Category\nLevel",  
+                        labels = c("low","medium","high"),
+                        values = c(2,4,6))+
+      geom_segment(data =arrow,
+                   aes(x = 0, xend = NMDS1, y = 0, yend = NMDS2),
+                   arrow = arrow(length = unit(0.25, "cm")), colour = "blue",lwd=2) +
+      geom_text(data = arrow, aes(x = NMDS1, y = NMDS2, label = ef),
+                size = 5,nudge_x=xnudge, nudge_y = ynudge, angle=angle) 
+    #browser()
+    return(qq)
+}
+
+#plotLMH()
+#plotLMH(cat=env$mic_tox_cat,target=c('mic_det','microcystin'),ef=ef07,scale=7,title='microcystin',xnudge=c(0,0),ynudge=c(-.1,.1))
+
+#plotLMH(cat=env$cyl_tox_cat,target=c('cyl_det','cylindrospermopsin'),ef=ef07,scale=7,title='cylindrospermopsin',xnudge=c(0,0),ynudge=c(-.1,.1))
+
+#qq<-plotLMH(cat=env$cyl_prod_abund_cat,target=c('cyl_det','cylindrospermopsin'),ef=ef07,scale=7,title='cylindrospermopsin',xnudge=c(0,0),ynudge=c(-.2,.1))
+#qq
+
+
+#cat=env$cyl_tox_cat;target=c('cyl_det','cylindrospermopsin');ef=ef07;scale=7;title='cylindrospermopsin';xnudge=c(0,0);ynudge=c(-.1,.1)
+#cat=env$mic_tox_cat;target=c('mic_det','microcystin');ef=ef07;scale=7;title='microcystin';xnudge=c(0,0);ynudge=c(-.1,.1)
+
+#cat=env$cyano_abund_cat,target=c('cyano_abund','cyl_det','mic_det','sax_det'),ef=ef07,scale=7,title='cyanobacteria abundance',xnudge=c(0,0,0,0),ynudge=c(.1,.1,0,0)
+
+
+```
+
+
+### to do
+* rf variable importance plots
+
+## Introduction
+
+* modified from Betty_NMSCode_20160824.R
+
+* read taxonomy data
+    - mutate: for is.na(genus_new) genus_new=genus (this will update any name changes.)
+* read phyto counts (2007 and 2012)
+* join taxonomy and counts
+* filter
+    - !is.na(phylum)-this eliminates data without a valid genus name
+    - VISIT_NO==1
+    - LAKE_SAMP=='Target_Sampled'
+* sum abundance by site_id and genus
+* create datasets phyto07 by spreading genus and abund; replace NA with zeros
+* create df cyano07 with the cyanobacteria data onl7
+
+```{r data, include=FALSE, echo=FALSE, eval=FALSE} 
+#get the taxonomy data: Note: original file='C:/bryan/rscripts/lakes_database/output/nla_phyto_taxonomy.xlsx',sheet='nla_phyto_taxonomy')
+tax<-read.csv(here("data/nla_phyto_taxonomy.csv"),na.strings=c("NA",""))%>%mutate(genus_new=ifelse(is.na(genus_new),genus,genus_new))
+
+#get the 2007 count data.  Data source: 'https://www.epa.gov/sites/production/files/2014-10/nla2007_phytoplankton_softalgaecount_20091023.csv'
+counts<-read.csv(here("data/nla2007_phytoplankton_softalgaecount_20091023.csv"))
+    nrow(counts) #31971
+###DELETE:  counts<-mutate(counts,GENUS=ifelse(GENUS=='Tetra\xebdron','Tetraëdron',GENUS))  #genus 'Tetraëdron' read incorrectly
+    
+#merge tax and counts by genus and filter
+t2007<-left_join(counts,tax,by=c("GENUS"="genus"))%>%filter(!is.na(phylum),VISIT_NO==1,LAKE_SAMP=='Target_Sampled')%>%rename(genus=genus_new)
+    nrow(t2007) #26382
+    
+t2007 <- group_by(t2007,SITE_ID,TAXONOMIST_CNT,phylum,genus)%>%
+  summarise(abund=sum(ABUND, na.rm = TRUE))
+    names(t2007)<-tolower(names(t2007))
+        nrow(t2007) #24107
+t2007<-ungroup(t2007)
+
+#create phyto07  all phytoplankton
+phyto07<-select(t2007,-phylum)%>%spread(genus,abund) #1,148 × 256
+phyto07[is.na(phyto07)] <- 0 
+    #save the taxonomist_cnt data to add to env below
+      taxonomist<-select(phyto07,site_id,taxonomist=taxonomist_cnt)%>%mutate(taxonomist=ifelse(taxonomist=="Dawn Perkins","DP",taxonomist))
+    #remove taxonomist_cnt
+      
+#create a ds without taxonomist=='JS'
+phyto07js<-filter(phyto07,taxonomist_cnt!='JS')%>%select(-taxonomist_cnt) #764 255
+phyto07<-select(phyto07,-taxonomist_cnt) #1,148 × 255
+save(phyto07,phyto07js,taxonomist,file=here('data/phyto07.rda'))
+
+#create cyano07 cyanobacteria only 
+cyano07<-filter(t2007,phylum=='Cyanobacteria')%>%select(-phylum)%>%spread(genus,abund) ##1,115 × 51
+cyano07[is.na(cyano07)] <- 0
+save(cyano07,file=here('data/cyano07.rda'))
+```
+
+```{r data1, include=FALSE, echo=FALSE, cache=FALSE} 
+load(file=here('data/phyto07.rda'))
+load(file=here('data/cyano07.rda'))
+```
+
+* decide how many dimensions to use for the NMS
+
+```{r stressTest, include=FALSE, echo=FALSE, cache=FALSE,eval=FALSE} 
+#Running NMS fit
+phytoNMS.2<-metaMDS(phyto07[,-1],k=2,trymax=500)
+phytoNMS.3<-metaMDS(phyto07[,-1],k=3,trymax=500)
+phytoNMS.4<-metaMDS(phyto07[,-1],k=4,trymax=500)
+phytoNMS.5<-metaMDS(phyto07[,-1],k=5,trymax=500)
+phytoNMS.6<-metaMDS(phyto07[,-1],k=6,trymax=500)
+
+#save(phytoNMS.2,phytoNMS.3,phytoNMS.4,file="C:/bryan/rscripts/esa2017bigdata/phytoNMS_stress_test1.rda")
+#save(phytoNMS.5,phytoNMS.6,file="C:/bryan/rscripts/esa2017bigdata/phytoNMS_stress_test2.rda")
+load(file="C:/bryan/rscripts/esa2017bigdata/phytoNMS_stress_test1.rda")
+load(file="C:/bryan/rscripts/esa2017bigdata/phytoNMS_stress_test2.rda")
+
+stress<-data.frame(dimension=2:6,stress=c(phytoNMS.2$stress,phytoNMS.3$stress,phytoNMS.4$stress,phytoNMS.5$stress,phytoNMS.6$stress))
+
+plot(stress$dimension,stress$stress)
+
+stressplot(phytoNMS.2)
+```
+
+* run the NMDS on the phyto abundances 
+```{r NMS07, include=FALSE, echo=FALSE, cache=FALSE,eval=FALSE} 
+nms07<-metaMDS(phyto07[,-1],k=4,trymax=10000)
+save(nms07,file=here("data/nms07.rda"))
+```
+
+```{r loadNMS07, include=FALSE,eval=TRUE}
+load(here("data/nms07.rda"))
+```
+
+
+* get the environmental data
+* start with the env data from the ecosphere paper
+* add Keith Loftins Toxin data
+    - create detect fields for each toxin; 1=detect 2=non-detect;cyl_det, mic_det, & sax_det
+    - create 'tox_detects' field to indicate the number of toxins detected (0-3)
+    - create toxin Low Med High field for each toxin
+        - cyl_tox_cat: non=[0,.05); low= [.05,1); med=[1,2); high=[2,inf); NOTE: low  .05<= cyl < 1
+        - mic_tox_cat: non=[0,.1); low= [.1,10); med=[10,20); high=[20,inf); Note: this is the who standard
+        - sax_tox_cat: non=[0,.02); low= [.02,.1); med=[.1,.2); high=[.2,inf)
+* add WHO standards for cyano cells counts
+    - cyano_abund_cat: none=[0,1), low= [0,20k); med=[20k,100k); high=[100k,inf)
+* add cat for cell counts of possible toxin producers
+    - cyl_prod_abund_cat: none=[0,1), low= [0,20k); med=[20k,100k); high=[100k,inf)  
+    - mic_prod_abund_cat: none=[0,1), low= [0,20k); med=[20k,100k); high=[100k,inf)
+    - sax_prod_abund_cat: none=[0,1), low= [0,20k); med=[20k,100k); high=[100k,inf)
+* add NLA chla data (ug/l)
+* add WHO standards for Chla (ug/l)
+    - chla_cat: low= [0,10) med=[10,50) high=[50,inf)
+* add NLA temp_mean
+* add "taxonomist"-to see if there is a pattern to who did the classifications
+
+```{r evdata, include=FALSE, eval=FALSE}
+#load the data and data definiitions directly from github for the ecosphere paper
+env<-read.csv(url("https://raw.githubusercontent.com/USEPA/LakeTrophicModelling/master/inst/extdata/ltmData.csv"))
+env_df<-read.csv(url("https://raw.githubusercontent.com/USEPA/LakeTrophicModelling/master/inst/extdata/data_def.csv"))
+
+#change NLA_ID to site_ID
+env<-rename(env,site_id=NLA_ID)
+
+#add site_id to data def
+env_df<-rbind(data.frame(variable_names='site_id',description="unique NLA site id for lake",type='id'),env_df)
+
+#keep only the variables in the data definitions
+env<-select_(env,.dots=env_df$variable_names)
+
+#add the algal toxins data
+#get raw data
+nla2007<-read.csv(url('https://raw.githubusercontent.com/willbmisled/lakes_database/master/output/nla2007_chem.csv'))
+#keep the toxin data only and switch to wide format
+tox<-filter(nla2007,parameter%in%c("cylindrospermopsin","microcystin","saxitoxin"),duplicate=='P')%>%select(uid,parameter,result)%>%spread(parameter,result)
+
+#add the NLA id
+uid<-read.csv(url('https://raw.githubusercontent.com/willbmisled/lakes_database/master/output/nla_samples.csv'))%>%filter(visit_no==1)%>%select(uid,site_id)
+
+tox<-left_join(tox,uid)%>%select(-uid)
+
+#add tox to env
+dim(env) #1148 72
+env<-left_join(env,tox)
+dim(env) #1148 75
+
+#replace missing tox values with zeros
+env<-mutate(env,cylindrospermopsin=ifelse(is.na(cylindrospermopsin),0,cylindrospermopsin))
+env<-mutate(env,microcystin=ifelse(is.na(microcystin),0,microcystin))
+env<-mutate(env,saxitoxin=ifelse(is.na(saxitoxin),0,saxitoxin))
+
+#add toxin detect variables
+env<-mutate(env,cyl_det=ifelse(cylindrospermopsin>0,1,0),mic_det=ifelse(microcystin>0,1,0),sax_det=ifelse(saxitoxin>0,1,0))
+
+#add tox_detects (total number of toxins detected)
+env<-mutate(env,tox_detects=cyl_det+mic_det+sax_det)
+
+#create toxin Low Med High field for each toxin
+env$cyl_tox_cat<-cut(env$cylindrospermopsin,breaks=c(0,.05,1,2,max(env$cylindrospermopsin,na.rm=TRUE)+1),right=FALSE,labels=c('none','low','med','high'),ordered_result=TRUE)
+
+env$mic_tox_cat<-cut(env$microcystin,breaks=c(0,.1,10,20,max(env$microcystin,na.rm=TRUE)+1),right=FALSE,labels=c('none','low','med','high'),ordered_result=TRUE)
+
+env$sax_tox_cat<-cut(env$saxitoxin,breaks=c(0,.02,.1,.2,max(env$saxitoxin,na.rm=TRUE)+1),right=FALSE,labels=c('none','low','med','high'),ordered_result=TRUE)
+                 
+#add toxins to data def
+tox_df<-data.frame(variable_names=c('cylindrospermopsin','microcystin','saxitoxin','cyl_det','mic_det','sax_det','tox_detects','cyl_tox_cat','mic_tox_cat','sax_tox_cat'),
+        description=c("Total cylindrospermopsin conc ELISA (µg/L)","Total microcystin conc ELISA (µg/L)","Total saxitoxin conc ELISA (µg/L)","1=cylindrospermopsin conc > reporting limit of 0.05 µg/L","1=microcystin conc > reporting limit of 0.1 µg/L","1=saxitoxin conc > reporting limit of 0.02 µg/L","number of toxins detected","non=[0,.05); low= [.05,1); med=[1,2); high=[2,inf)","non=[0,.1); low= [.1,10); med=[10,20); high=[20,inf); Note: this is the who standard","non=[0,.02); low= [.02,.1); med=[.1,.2); high=[.2,inf)"),
+        type=rep('toxin',10))
+
+env_df<-rbind(env_df,tox_df)
+
+dim(env) #1148   82
+
+# add WHO standards for cyano cells counts
+c_count<-data.frame(site_id=cyano07$site_id,cyano_abund=apply(cyano07[,-1],1,sum))
+
+c_count$cyano_abund_cat<-cut(c_count$cyano_abund,breaks=c(0,1,20000,100000,max(c_count$cyano_abund,na.rm=TRUE)+1),right=FALSE,labels=c('none','low','med','high'),ordered_result=TRUE)
+
+env<-left_join(env,c_count)
+
+dim(env) #1148   84
+
+env_df<-rbind(data.frame(variable_names=c("cyano_abund","cyano_abund_cat"),description=c("cyano cell counts","WHO cyano category: none=[0,1), low= [0,20k); med=[20k,100k); high=[100k,inf)"),type=rep('cyano',2)),env_df)
+
+# add cat for cell counts of possible toxin producers
+    # cyl_prod_abund_cat: none=[0,1), low= [0,20k); med=[20k,100k); high=[100k,inf)  
+
+#get the toxin producing genera: Note: original file='C:/bryan/rscripts/lakes_database/output/nla_phyto_taxonomy.xlsx',sheet='toxLoftin')
+tox<-read.csv(here("data/toxLoftin.csv"))
+
+cyl<-filter(tox,cylindrospermopsin==1)
+cyl_prod<-select_(cyano07,.dots=c('site_id',names(cyano07)[names(cyano07)%in%cyl$genus]))
+cyl_prod$cyl_prod_abund<-apply(cyl_prod[,-1],1,sum)
+cyl_prod$cyl_prod_abund_cat<-cut(cyl_prod$cyl_prod_abund,breaks=c(0,1,20000,100000,max(cyl_prod$cyl_prod_abund,na.rm=TRUE)+1),right=FALSE,labels=c('none','low','med','high'),ordered_result=TRUE)
+cyl_prod$cyl_prod_abund_cat<-cyl_prod$cyl_prod_abund_cat
+env<-left_join(env,select(cyl_prod,site_id,cyl_prod_abund,cyl_prod_abund_cat))
+
+dim(env) #1148   86
+
+mic<-filter(tox,microcystin==1)
+mic_prod<-select_(cyano07,.dots=c('site_id',names(cyano07)[names(cyano07)%in%mic$genus]))
+mic_prod$mic_prod_abund<-apply(mic_prod[,-1],1,sum)
+mic_prod$mic_prod_abund_cat<-cut(mic_prod$mic_prod_abund,breaks=c(0,1,20000,100000,max(mic_prod$mic_prod_abund,na.rm=TRUE)+1),right=FALSE,labels=c('none','low','med','high'),ordered_result=TRUE)
+mic_prod$mic_prod_abund_cat<-mic_prod$mic_prod_abund_cat
+env<-left_join(env,select(mic_prod,site_id,mic_prod_abund,mic_prod_abund_cat))
+
+dim(env) #1148   88
+
+sax<-filter(tox,saxitoxin==1)
+sax_prod<-select_(cyano07,.dots=c('site_id',names(cyano07)[names(cyano07)%in%sax$genus]))
+sax_prod$sax_prod_abund<-apply(sax_prod[,-1],1,sum)
+sax_prod$sax_prod_abund_cat<-cut(sax_prod$sax_prod_abund,breaks=c(0,1,20000,100000,max(sax_prod$sax_prod_abund,na.rm=TRUE)+1),right=FALSE,labels=c('none','low','med','high'),ordered_result=TRUE)
+sax_prod$sax_prod_abund_cat<-sax_prod$sax_prod_abund_cat
+env<-left_join(env,select(sax_prod,site_id,sax_prod_abund,sax_prod_abund_cat))
+
+
+dim(env) #1148   90
+
+#add tox_prod field to data def
+tox_df<-data.frame(variable_names=c('cyl_prod_abund','cyl_prod_abund_cat',
+                                    'mic_prod_abund','mic_prod_abund_cat',
+                                    'sax_prod_abund','sax_prod_abund_cat'),
+        description=c('potential cylindrospermopsin producer cell count','potential cylindrospermopsin producer category: none=[0,1), low= [0,20k); med=[20k,100k); high=[100k,inf))','potential microcystin producer cell count','potential microcystin producer category: none=[0,1), low= [0,20k); med=[20k,100k); high=[100k,inf))','potential saxitoxin producer cell count','potential saxitoxin producer category: none=[0,1), low= [0,20k); med=[20k,100k); high=[100k,inf))'),
+        type=rep('tox_prod',6))
+
+env_df<-rbind(env_df,tox_df)
+
+# add WHO standards for Chla (ug/l): chla_cat: low= [0,10) med=[10,50) high=[50,inf)
+chla<-filter(nla2007,parameter=='chla',duplicate=='P')%>%select(uid,parameter,result)%>%spread(parameter,result)
+chla<-left_join(chla,uid)%>%select(-uid) #add the NLA id
+
+chla$chla_cat<-cut(chla$chla,breaks=c(0,10,50,max(chla$chla,na.rm=TRUE)+1),right=FALSE,labels=c('low','med','high'),ordered_result=TRUE)
+
+env<-left_join(env,chla)
+
+dim(env) #1148   92
+
+env_df<-rbind(env_df,data.frame(variable_names=c('chla','chla_cat'),description=c('NLA measured chla ug/l','WHO categories for chla: low= [0,10) med=[10,50) high=[50,inf)'),type=c('NLA','chla_cat')))
+
+#add temp_mean
+temp<-filter(nla2007,parameter=='temp_mean',duplicate=='P')%>%select(uid,parameter,result)%>%spread(parameter,result)
+temp<-left_join(temp,uid)%>%select(-uid) #add the NLA id
+
+env<-left_join(env,temp)
+
+env_df<-rbind(env_df,data.frame(variable_names='temp_mean',description='mean temperature of water column from profile data in degrees C',type='NLA'))
+
+dim(env) #1148   93
+
+# add lake origin from site info file
+site<-read.csv(url('https://www.epa.gov/sites/production/files/2014-01/nla2007_sampledlakeinformation_20091113.csv'))
+site<-filter(site,VISIT_NO==1,LAKE_SAMP=='Target_Sampled')%>%select(site_id=SITE_ID,lake_origin=LAKE_ORIGIN)
+env_df<-rbind(env_df,data.frame(variable_names='lake_origin',description='lake origin; man-made or natural',type='site'))
+
+env<-left_join(env,site)
+
+#make sure env$site_id is in the same order as the nmds data
+env<-left_join(select(phyto07,site_id),env) 
+table(phyto07$site_id==env$site_id) #check for site_id match-all TRUE
+
+#replace NA cat variables with "none"
+table(env$cyl_tox_cat,useNA='ifany')
+table(env$mic_tox_cat,useNA='ifany')
+table(env$sax_tox_cat,useNA='ifany')
+
+table(env$cyano_abund_cat,useNA='ifany')
+table(env$cyl_prod_abund_cat,useNA='ifany')
+table(env$mic_prod_abund_cat,useNA='ifany')
+table(env$sax_prod_abund_cat,useNA='ifany')
+table(env$chla_cat,useNA='ifany')   #these are legit.  Leave
+table(is.na(env$chla)) 
+
+env$cyano_abund_cat[is.na(env$cyano_abund_cat)]<-'none'
+env$cyl_prod_abund_cat[is.na(env$cyl_prod_abund_cat)]<-'none'
+env$mic_prod_abund_cat[is.na(env$mic_prod_abund_cat)]<-'none'
+env$sax_prod_abund_cat[is.na(env$sax_prod_abund_cat)]<-'none'
+
+dim(env) #1148   94
+
+#add taxonomist NOTE: the taxonomist df is in 'data/phyto07.rda';should have been loaded in chunk data or data1
+
+env$taxonomist_cat<-taxonomist$taxonomist
+env_df<-rbind(env_df,data.frame(variable_names='taxonomist_cat',description='initials of taxonomist who identified phytoplankton',type='taxonomy'))
+
+dim(env) #1148   95
+
+table(names(env)%in%env_df$variable_names) #t=95
+table(env_df$variable_names%in%names(env)) #t=95
+save(env,env_df,file=here('data/env.rda'))
+```
+
+* data definitions for the environmental data
+
+```{r env_df, include=TRUE, echo=FALSE}
+load(here('data/env.rda'))
+kable(env_df)
+
+```
+
+* use envfit to compare NMDS scores and environmental gradient data
+
+```{r ev7, include=FALSE,eval=FALSE}
+ef07<-envfit(nms07, env, permu = 999,na.rm=TRUE)
+save(ef07,file=here("data/ef07.rda"))
+```
+
+```{r loadEFdata, include=FALSE,eval=TRUE}
+load(here("data/ef07.rda"))
+```
+
+* Cluster Analysis
+
+```{r cluster, include=FALSE,eval=FALSE}
+dist07<-vegdist(nms07$points[,1:2],method="euclidean")
+
+clus07com<-hclust(dist07,"complete")
+clus07sin<-hclust(dist07,"single")
+clus07ave<-hclust(dist07,"average")
+
+cor(dist07, cophenetic(clus07com)) #0.6585126
+cor(dist07, cophenetic(clus07sin)) #0.5396457
+cor(dist07, cophenetic(clus07ave)) #0.7734899
+
+jpeg(here("output/nms_cluster.jpeg")) 
+plot(clus07ave,hang=-1,main="Cluster Analysis of NMDS Scores")
+dev.off()
+
+plot(clus07ave,axes=FALSE,xlab=NA,ylab=NA,main="Cluster Analysis of NMDS Scores")
+rect.hclust(clus07ave,3)
+
+grp2<-cutree(clus07ave,2)
+grp3<-cutree(clus07ave,3)
+grp4<-cutree(clus07ave,4)
+grp5<-cutree(clus07ave,5)
+grp6<-cutree(clus07ave,6)
+grp7<-cutree(clus07ave,7)
+
+
+table(grp2)
+table(grp3)
+table(grp4)
+table(grp5)
+table(grp6)
+table(grp7)
+
+save(grp2,grp3,grp4,grp5,grp6,grp7,file=here("data/grps.rda"))
+
+###Plot of NMS color coded for clusters
+fig<-ordiplot(nms07,type="none",main="nms07")
+points(fig,"sites",pch=16,cex=0.7,col=grp3)
+
+plot(nms07,disp='sites',type='n')
+ordihull(nms07,grp2,col=1:3)
+ordiellipse(nms07,grp2,col=1:3,kind='ehull')
+ordiellipse(nms07,grp2,col=1:3,draw="polygon")
+ordispider(nms07,grp2,col=1:3,label=TRUE)
+points(nms07, disp="sites", pch=21, col="red", bg="yellow", cex=1.3)
+```
+
+```{r cluster, include=FALSE,eval=TRUE}
+load(here("data/grp2.rda"))
+```
+
+* create a table with the 2007 toxic genera
+    - NOTE: Oscillatoria includes Planktothrix & Phormidium 
+* create table of tox cats
+
+```{r toxTables, include=FALSE, echo=FALSE, cache=FALSE,eval=FALSE} 
+#tox spp.
+a<-group_by(t2007,genus)%>%
+    summarise(count = n(),
+              median= round(median(abund, na.rm = TRUE)),
+              mean= round(mean(abund, na.rm = TRUE)),
+              max =round(sd(abund, na.rm = TRUE)))%>%
+    inner_join(tox)%>%arrange(genus)%>%
+      filter(cylindrospermopsin==1|microcystin==1|saxitoxin==1)
+
+write.csv(a,file=here("output/tox_table.csv"),row.names = FALSE)
+
+```
+
+* Plot the first two NMDS score
+
+```{r plotNMDS, include=FALSE}
+qq<-ggplot(sites,aes(x=NMDS1,y=NMDS2)) + geom_point(colour="#31688EFF",size=3) + ggtitle("Initial Plot of NMDS Scores")+
+  theme(plot.title = element_text(lineheight=4.8, face="bold",hjust = 0.5))
+                               
+qq 
+
+###output plot
+jpeg(here("output/nms_scores.jpeg")) 
+qq
+dev.off()
+
+```
+
+* setup ggplot of convex hull of sites by cluster group 
+
+```{r ggHull, include=FALSE}
+#sites from NMS
+sites <- as.data.frame(scores(nms07, display = "sites"))
+#add toxin detect data & WSA9
+sites<-cbind(sites,select(env,WSA_ECO9,cyl_det,mic_det,sax_det,tox_detects,lake_origin,chla_cat))
+
+#select group
+group<-grp2
+
+#add group to sites
+sites$group<-group
+
+#define convex hulls by group
+hulls <- sites %>% 
+  group_by(group) %>% 
+  do(.[chull(.[c('NMDS1','NMDS2')]), ])
+
+#create gglot with sites and convex hull
+gg<-ggplot(sites) +
+  geom_polygon(data = hulls, alpha = 0.3,aes(x=NMDS1,y=NMDS2,fill=factor(group))) +
+  coord_fixed() + ## need aspect ratio of 1!
+  scale_fill_manual(values=viridis_pal()(2),         #c("#E69F00", "#56B4E9"), 
+                    name="Community\nType",
+                    breaks=c(1, 2),
+                    labels=c("One", "Two"))
+```
+
+
+* plot convex hull of sites by cluster group and points of potentially toxic producing species
+
+```{r pot_tox, include=TRUE, echo=FALSE}
+#add toxin producing spp
+  #get the toxin producing genera
+tox<-read.csv(here("data/toxLoftin.csv"))%>%dplyr::select(-comment,-anatoxin,-nodularin) 
+
+#species
+spp <- as.data.frame(scores(nms07, display = "species"))
+spp$genus<-row.names(spp)
+spp<-left_join(spp,tox)
+
+#df "tox_prod" has the potential toxin producers
+cyl<-filter(spp,cylindrospermopsin==1)%>%mutate(toxin='cylindrospermopsin',size=16)%>%select(NMDS1,NMDS2,toxin,size)
+mic<-filter(spp,microcystin==1)%>%mutate(toxin='microcystin',size=8)%>%select(NMDS1,NMDS2,toxin,size)
+sax<-filter(spp,saxitoxin==1)%>%mutate(toxin='saxitoxin',size=4)%>%select(NMDS1,NMDS2,toxin,size)
+tox_prod<-rbind(cyl,mic,sax)
+
+gg1<-gg +
+  geom_point(data=tox_prod,aes(x=NMDS1,y=NMDS2,col=toxin,size=size)) +
+  scale_color_manual(values=viridis_pal()(3),                          #c("red", "blue","orange"), 
+                  name="Potential\nToxin\nProducer",
+                  breaks=c('cylindrospermopsin','microcystin','saxitoxin'),
+                  labels=c("cyl", "mic","sax"))+
+  scale_size(guide = 'none')
+
+#add names to points
+tox_spp<-filter(spp,cylindrospermopsin==1|microcystin==1|saxitoxin==1)
+
+qq<-gg1+geom_text(data=tox_spp,aes(x=NMDS1,y=NMDS2,label=genus),hjust=0,nudge_x=.05)+
+      ggtitle('Potential Toxin Producing Cyanobacteria')+
+      theme(plot.title = element_text(lineheight=4.8, face="bold",hjust = 0.5))
+qq
+
+###output plot
+jpeg(here("output/nms_grp_tox_prod_names.jpeg")) 
+qq
+dev.off()
+
+#arrows and tox producers
+#get envfit scores
+ef.scrs <- as.data.frame(scores(ef07, display = "vectors"))
+ef.scrs <- cbind(ef.scrs, ef = rownames(ef.scrs))
+arrows<-getArrow(ef=ef07,target=c('microcystin','saxitoxin','cylindrospermopsin'),scale=6)
+
+qq<-gg1 +
+  geom_segment(data =arrows,
+               aes(x = 0, xend = NMDS1, y = 0, yend = NMDS2),
+               arrow = arrow(length = unit(0.25, "cm")), colour = "blue",lwd=2) +
+  geom_text(data = arrows, aes(x = NMDS1, y = NMDS2, label = ef),
+            size = 5,nudge_x=c(.45,.2,-.21), nudge_y = c(-.05,-.05,.05))+
+      ggtitle('Potential Toxin Producing Cyanobacteria')+
+      theme(plot.title = element_text(lineheight=4.8, face="bold",hjust = 0.5))
+qq
+
+###output plot
+jpeg(here("output/nms_grp_tox_prod_det_arrow.jpeg")) 
+qq
+dev.off()
+  
+```
+
+* plot Low/Med/High cat variables with lake groups and biplot arrows
+    - cyl_tox_cat
+    - cyl_prod_abund_cat
+    - mic_tox_cat
+    - mic_prod_abund_cat
+    - sax_tox_cat
+    - sax_prod_abund_cat
+    - cyano_abund_cat
+    - chla_cat
+    
+```{r lmhPlots, include=TRUE, echo=FALSE}
+
+#cyl toxin
+  qq<-plotLMH(cat=env$cyl_tox_cat,target=c('cyl_det','cylindrospermopsin','cyl_prod_abund'),ef=ef07,scale=7,title='Cylindrospermopsin Toxin Category',xnudge=c(.5,.2,.5),ynudge=c(-.2,.1,0),angle=c(-22,0,0))
+  qq
+  ###output plot
+  jpeg(here("output/nms_grp_cyl_tox_cat.jpeg")) 
+  qq
+  dev.off()
+
+#cyl prod
+  qq<-plotLMH(cat=env$cyl_prod_abund_cat,target=c('cyl_det','cylindrospermopsin','cyl_prod_abund'),ef=ef07,scale=7,title='Potential Cylindrospermopsin Producer Abundance',xnudge=c(.2,.15,.5),ynudge=c(-.5,.1,0),angle=c(-58,0,0))
+  qq
+  ###output plot
+  jpeg(here("output/nms_grp_cyl_prod_abund_cat.jpeg")) 
+  qq
+  dev.off()
+
+#mic toxin
+  qq<-plotLMH(cat=env$mic_tox_cat,target=c('mic_det','microcystin','mic_prod_abund'),ef=ef07,scale=7,title='Microcystin Toxin Category',xnudge=c(-.25,-.1,.2),ynudge=c(-.15,.1,.4),angle=c(0,0,45))
+  qq
+  ###output plot
+  jpeg(here("output/nms_grp_mic_tox_cat.jpeg")) 
+  qq
+  dev.off()
+
+#mic prod
+  qq<-plotLMH(cat=env$mic_prod_abund_cat,target=c('mic_det','microcystin','mic_prod_abund'),ef=ef07,scale=7,title='Potential Microcystin Producer Abundance',xnudge=c(-.55,-.1,.2),ynudge=c(-.45,.1,.4),angle=c(45,0,45))
+  qq
+  ###output plot
+  jpeg(here("output/nms_grp_mic_prod_abund_cat.jpeg")) 
+  qq
+  dev.off()  
+  
+#sax toxin
+qq<-plotLMH(cat=env$sax_tox_cat,target=c('sax_det','saxitoxin','sax_prod_abund'),ef=ef07,scale=7,title='Saxitoxin Toxin Category',xnudge=c(.0,-.1,-.45),ynudge=c(.15,.1,0),angle=c(-32,0,0))
+qq
+###output plot
+jpeg(here("output/nms_grp_sax_tox_cat.jpeg")) 
+qq
+dev.off()
+
+#sax prod
+  qq<-plotLMH(cat=env$sax_prod_abund_cat,target=c('sax_det','saxitoxin','sax_prod_abund'),ef=ef07,scale=7,title='Potential Saxitoxin Producer Abundance',xnudge=c(-.7,-.3,-.45),ynudge=c(.5,.1,0),angle=c(-42,0,0))
+  qq
+  ###output plot
+  jpeg(here("output/nms_grp_sax_prod_abund_cat.jpeg")) 
+  qq
+  dev.off() 
+  
+#cyano_abund
+  qq<-plotLMH(cat=env$cyano_abund_cat,target=c('cyano_abund','cyl_det','mic_det','sax_det'),ef=ef07,scale=7,title='Cyanobacteria Abundance',xnudge=c(.17,-.21,-.44,.4),ynudge=c(.15,.1,-.1,-.5),angle=c(0,0,0,-33))
+  qq
+  ###output plot
+  jpeg(here("output/nms_grp_cyano_abund_cat.jpeg")) 
+  qq
+  dev.off()
+
+#chla_cat
+  qq<-plotLMH(cat=env$chla_cat,target=c('chla','cyl_det','mic_det','sax_det'),ef=ef07,scale=7,title='Chloropyll a Level',xnudge=c(.15,-.1,-.35,-.15),ynudge=c(.15,.1,-.1,.1))
+  qq
+  ###output plot
+  jpeg(here("output/nms_grp_chla_cat.jpeg")) 
+  qq
+  dev.off()
+
+```
+
+* color lake points by "Community Type"  ##################################
+
+```{r grouping, include=TRUE, echo=FALSE}
+#add site points
+qq<-gg+geom_point(aes(x=NMDS1,y=NMDS2,col=factor(grp2)),size=2)+
+      ggtitle('Community Type')+
+      scale_color_manual(values=c('#440154FF','#fcb514'),                          #c("red", "blue","orange"), 
+                  name="Community\nType",
+                  breaks=c(1,2),
+                  labels=c("One","Two"))+
+      theme(plot.title = element_text(lineheight=4.8, face="bold",hjust = 0.5))
+qq
+
+###output plot
+jpeg(here("output/nms_grp_community_type.jpeg")) 
+qq
+dev.off()
+```
+
+* color lake points by "lake_origin"
+
+```{r lake_origin, include=TRUE, echo=FALSE}
+#add site points
+qq<-gg+geom_point(aes(x=NMDS1,y=NMDS2,col=factor(lake_origin)),size=2)+
+      ggtitle('Natural vs. Man-made Lakes')+
+      scale_color_manual(values=viridis_pal()(4)[2:3],                          #c("red", "blue","orange"), 
+                  name="Origin",
+                  breaks=c('MAN-MADE','NATURAL'),
+                  labels=c("man-made","natural"))+
+      theme(plot.title = element_text(lineheight=4.8, face="bold",hjust = 0.5))
+qq
+
+###output plot
+jpeg(here("output/nms_grp_lake_origen.jpeg")) 
+qq
+dev.off()
+```
+
+* color lake points by "WSA_ECO9"
+
+```{r WSA_ECO9, include=TRUE, echo=FALSE}
+#add site points
+
+c('CPL','NAP','NPL','SAP','SPL','TPL','UMW','WMT','XER')
+a<-select(env,WSA_ECO9)%>%distinct()%>%arrange(WSA_ECO9)
+qq<-gg+geom_point(aes(x=NMDS1,y=NMDS2,col=factor(WSA_ECO9)),size=2)+
+      ggtitle('WSA9 Ecoregion')+
+      scale_color_manual(values=viridis_pal()(9),                          #c("red", "blue","orange"), 
+                  name="Ecoregion",
+                  breaks=c('CPL','NAP','NPL','SAP','SPL','TPL','UMW','WMT','XER'),
+                  labels=c('CPL','NAP','NPL','SAP','SPL','TPL','UMW','WMT','XER'))+
+      theme(plot.title = element_text(lineheight=4.8, face="bold",hjust = 0.5))
+qq
+
+###output plot
+jpeg(here("output/nms_grp_wsa_eco9.jpeg")) 
+qq
+dev.off()
+```
+
+* map community type with biplot arrows for: 
+
+```{r biplot, include=TRUE, echo=FALSE}
+
+#all in one
+arrow<-getArrow(ef=ef07,target=c('microcystin','mic_det','mic_prod_abund','saxitoxin','sax_det','sax_prod_abund','cylindrospermopsin','cyl_det','cyl_prod_abund','cyano_abund','chla','PTL','NTL'),scale=6)
+
+qq<-gg+geom_segment(data =arrow,
+                   aes(x = 0, xend = NMDS1, y = 0, yend = NMDS2),
+                   arrow = arrow(length = unit(0.25, "cm")), colour = "blue",lwd=2) +
+      geom_text(data = arrow, aes(x = NMDS1, y = NMDS2, label = ef),
+                size = 5,nudge_x=c(-.1,-.1,.6,-.23,-.2,.2,-.2,-.2,.4,-.4,.4,-.4,-.1), nudge_y = c(0,0,0,-.15,.15,0,.06,0,-.1,0,.15,0,.1), angle=c(0,0,0,42,-20,0,0,0,-18,0,20,0,0)) +
+  ggtitle('Biplot Analysis')+theme(plot.title = element_text(lineheight=4.8, face="bold",hjust = 0.5))
+
+qq
+
+###output plot
+jpeg(here("output/nms_grp_biplot.jpeg")) 
+qq
+dev.off()
+
+#env biplot
+arrow<-getArrow(ef=ef07,target=c('chla','PTL','NTL','MeanDepthCorrect','temp_mean'),scale=3)
+arrow<-mutate(arrow,ef=ifelse(ef=='temp_mean','mean_temperature',ef))
+arrow<-mutate(arrow,ef=ifelse(ef=='MeanDepthCorrect','mean_depth',ef))
+
+qq<-gg+geom_segment(data =arrow,
+                   aes(x = 0, xend = NMDS1, y = 0, yend = NMDS2),
+                   arrow = arrow(length = unit(0.25, "cm")), colour = "green",lwd=2) +
+      geom_text(data = arrow, aes(x = NMDS1, y = NMDS2, label = ef),
+                size = 5,nudge_x=c(-.1,-.1,0.35,-.05,-.5), nudge_y = c(.1,-.1,0,.1,0), angle=c(0,0,0,0,0)) +
+  ggtitle('Biplot Environmental Variables')+theme(plot.title = element_text(lineheight=4.8, face="bold",hjust = 0.5))
+
+qq
+
+###output plot
+jpeg(here("output/nms_grp_biplot_env.jpeg")) 
+qq
+dev.off()
+
+#cyano biplot
+
+arrow<-getArrow(ef=ef07,target=c('microcystin','mic_det','mic_prod_abund','saxitoxin','sax_det','sax_prod_abund','cylindrospermopsin','cyl_det','cyl_prod_abund','cyano_abund'),scale=4)
+
+qq<-gg+geom_segment(data =arrow,
+                   aes(x = 0, xend = NMDS1, y = 0, yend = NMDS2),
+                   arrow = arrow(length = unit(0.25, "cm")), colour = "blue",lwd=2) +
+      geom_text(data = arrow, aes(x = NMDS1, y = NMDS2, label = ef),
+                size = 5,nudge_x=c(.6,-.25,-.2,.15,-.2,-.2,.4,-.4,.4,-.45), nudge_y = c(0,-.15,.15,.25,.06,0,-.1,0,.15,0), angle=c(0,42,-20,50,0,0,-18,0,20,0)) +
+  ggtitle('Biplot Cyanobacteria Variables')+theme(plot.title = element_text(lineheight=4.8, face="bold",hjust = 0.5))
+
+qq
+
+###output plot
+jpeg(here("output/nms_grp_biplot_cyano.jpeg")) 
+qq
+dev.off()
+
+
+
+
+```
+
+* draw some box plots based on lake group
+
+```{r boxplot, include=FALSE}
+
+boxplot(log(env$chla)~grp2)
+boxplot(log(env$PTL)~grp2)
+boxplot(log(env$NTL)~grp2)
+boxplot(log(env$mic_prod_abund)~grp2)
+boxplot(log(env$cyl_prod_abund)~grp2)
+boxplot(log(env$sax_prod_abund)~grp2)
+boxplot(log(env$cyano_abund)~grp2)
+boxplot(log(env$microcystin)~grp2)
+
+summary(env$microcystin[grp2==1])
+summary(env$microcystin[grp2==2])
+table(grp2,env$mic_prod_abund_cat)
+
+a<-filter(env,microcystin>0)
+summary(a$microcystin[grp2==1])
+summary(a$microcystin[grp2==2])
+
+```
+
+* random forest analysis of env variables to predict grp2
+
+```{r rf_data, include=FALSE,eval=TRUE}
+env_rf<-cbind(group2=factor(grp2,label=c('one','two')),env)
+env_rf<-env_rf[complete.cases(env_rf),]
+predictors<-as.data.frame(select(env_rf,-group2,-site_id,-DATE_COL))
+predictors[sapply(predictors, is.character)]<-lapply(predictors[sapply(predictors, is.character)],as.factor)#covert _cat to factor
+lake_group<-factor(env_rf$group2)
+```
+
+```{r rf_anal, include=FALSE, eval=FALSE}
+#random forest analysis
+set.seed(1956)
+rf_grp2_env07<-randomForest(predictors,lake_group,ntree=10000,importance=TRUE,proximity=TRUE)
+save(rf_grp2_env07,file="C:/bryan/rscripts/esa2017bigdata/rf_grp2_env07.rda")
+```
+
+```{r rf_presnt, include=FALSE}
+#variable importance
+#https://www.r-bloggers.com/variable-importance-plot-and-variable-selection/
+load("C:/bryan/rscripts/esa2017bigdata/rf_grp2_env07.rda")
+head(rf_grp2_env07$importance)
+
+rf_grp2_env07
+
+jpeg(here("output/VI_rf_grp2_env07a.jpeg")) 
+varImpPlot(rf_grp2_env07,type=2,main='Environ. Variable Importance for Lake Group') #mean decrease in node impurity
+dev.off()
+
+jpeg(here("output/VI_rf_grp2_env07b.jpeg")) 
+varImpPlot(rf_grp2_env07,type=1,main='Environ. Variable Importance for Lake Group') #mean decrease in accuracy
+dev.off()
+#partialPlot(rf_grp2_env07,predictors,'WSA_ECO9')
+#partialPlot(rf_grp2_env07,predictors,'cyano_abund')
+```
+
+* random forest analysis of phyto variables to predict grp2
+
+```{r rfphyto_anal, include=FALSE, eval=FALSE}
+lake_group1<-as.factor(grp2) 
+set.seed(1956)
+rf_grp2_phyto07<-randomForest(phyto07[,-1],lake_group1,ntree=10000,importance=TRUE,proximity=TRUE)
+save(rf_grp2_phyto07,file="C:/bryan/rscripts/esa2017bigdata/rf_grp2_phyto07.rda")
+```
+
+```{r rfphyto_present, include=FALSE}
+load("C:/bryan/rscripts/esa2017bigdata/rf_grp2_phyto07.rda")
+
+rf_grp2_phyto07
+
+jpeg(here("output/VI_rf_grp2_phyto07a.jpeg")) 
+varImpPlot(rf_grp2_phyto07,type=2,main='Phytoplankton Variable Importance for Lake Group' ) #mean decrease in node impurity
+dev.off()
+
+jpeg(here("output/VI_rf_grp2_phyto07b.jpeg")) 
+varImpPlot(rf_grp2_phyto07,type=1,main='Phytoplankton Variable Importance for Lake Group' ) #mean decrease in accuracy
+dev.off()
+```
+
+* random forest analysis of cyano variables to predict grp2
+
+```{r rfcyano_anal, include=FALSE, eval=FALSE}
+#missing values for cyano07 need to be dealt with
+grp2a<-data.frame(site_id=env$site_id,grp2)
+grp2b<-inner_join(grp2a,cyano07)
+
+
+lake_group1<-as.factor(grp2b$grp2) 
+set.seed(1956)
+rf_grp2_cyano07<-randomForest(cyano07[,-1],lake_group1,ntree=10000,importance=TRUE,proximity=TRUE)
+#save(rf_grp2_cyano07,file="C:/bryan/rscripts/esa2017bigdata/rf_grp2_cyano07.rda")
+save(rf_grp2_cyano07,file=here("data/rf_grp2_cyano07.rda"))
+```
+
+```{r rfcyano_present, include=FALSE, eval=TRUE}
+
+load("C:/bryan/rscripts/esa2017bigdata/rf_grp2_cyano07.rda")
+
+rf_grp2_cyano07
+
+jpeg(here("output/VI_rf_grp2_cyano07a.jpeg")) 
+varImpPlot(rf_grp2_cyano07,type=2,main='Cyanobacteria Variable Importance for Lake Group') #mean decrease in node impurity
+dev.off()
+
+jpeg(here("output/VI_rf_grp2_cyano07b.jpeg")) 
+varImpPlot(rf_grp2_cyano07,type=1,main='Cyanobacteria Variable Importance for Lake Group') #mean decrease in accuracy
+dev.off()
+```
+
+* Indicator Species Analysis
+
+```{r ind_spp, include=FALSE,eval=FALSE}
+#http://rfunctions.blogspot.com/2013/02/multivariate-analysis-indicator-value.html
+#http://biol09.biol.umontreal.ca/Beijing_Linear_model/Indicator_species.pdf
+
+ind_spp<-labdsv::indval(phyto07[,-1],grp2)
+
+rf <- ind_spp$relfrq;names(rf)<-c('relfreq1','relfreq2')  #[ind_spp$pval<=0.05]
+ra <- ind_spp$relabu;names(ra)<-c('relabund1','relabund2') #[ind_spp$pval<=0.05]
+gr <- ind_spp$maxcls #[ind_spp$pval<=0.05]
+iv <- ind_spp$indcls #[ind_spp$pval<=0.05]
+pv <- ind_spp$pval #[ind_spp$pval<=0.05]
+fr <- apply(phyto07[,-1]>0, 2, sum) #[ind_spp$pval<=0.05]
+indvalsummary <- data.frame(group=gr, indval=iv, pvalue=pv, freq=fr,rf,ra)
+indvalsummary <- indvalsummary[order(indvalsummary$group, -indvalsummary$indval),]
+
+indvalsummary <-rownames_to_column(indvalsummary)%>%rename(genus=rowname)
+indvalsummary[-1]<-round(indvalsummary[-1],3)
+
+head(indvalsummary)
+
+# Let us see the results
+indvalsummary
+
+#what about the toxins
+indvalsummary_tox<-inner_join(indvalsummary,tox)
+
+#output the data
+write.csv(indvalsummary,here('output/indval.csv'),row.names = FALSE)
+write.csv(indvalsummary_tox,here('output/indval_tox.csv'),row.names = FALSE)
+
+```
+
+* Calc summary stats for the lake groups
+
+```{r ind_spp, include=FALSE}
+joy<-cbind(env,grp2)
+grp_sum<-group_by(joy,grp2)%>%
+  summarise(mean_NTL=mean(NTL, na.rm = TRUE),
+            mean_PTL=mean(PTL, na.rm = TRUE),
+            mean_chla=mean(chla, na.rm = TRUE),
+            mean_temperature=mean(temp_mean, na.rm = TRUE),
+            mean_depth=mean(MeanDepthCorrect, na.rm = TRUE),
+            mean_microcystin=mean(microcystin, na.rm = TRUE),
+            mean_saxitoxin=mean(saxitoxin, na.rm = TRUE),
+            mean_cylindrospermopsin=mean(cylindrospermopsin, na.rm = TRUE),
+            mean_mic_prod_abund=mean(mic_prod_abund, na.rm = TRUE),
+            mean_sax_prod_abund=mean(sax_prod_abund, na.rm = TRUE),
+            mean_cyl_prod_abund=mean(cyl_prod_abund, na.rm = TRUE),
+            mean_cyano_abund=mean(cyano_abund, na.rm = TRUE))
+
+#function to get the percent detects by group for the toxins
+getCnt<-function(q=joy$mic_det){
+x<-as.matrix(table(joy$grp2,q))
+y<-c(round(100*x[1,2]/(x[1,1]+x[1,2]),1),
+round(100*x[2,2]/(x[2,1]+x[2,2]),1))
+return(y)}
+
+grp_sum$mic_per_det<-getCnt(joy$mic_det)
+grp_sum$sax_per_det<-getCnt(joy$sax_det)
+grp_sum$cyl_per_det<-getCnt(joy$cyl_det)
+
+write.csv(grp_sum,here('output/grp_sum.csv'),row.names = FALSE)
+
+
+```
