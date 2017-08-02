@@ -1,5 +1,5 @@
 ---
-title: "esa_analysis"
+title: "taxonomist_nmds"
 author: "Bryan Milstead"
 date: "`r format(Sys.time(), '%d %B %Y')`"
 output: html_document
@@ -102,65 +102,42 @@ plotLMH<-function(cat=env$mic_tox_cat,target=c('mic_det','microcystin'),ef=ef07,
 
 
 ### to do
-* rf variable importance plots
+* 
 
 ## Introduction
 
-* modified from Betty_NMSCode_20160824.R
+* Do an NMDS on the phyto data using taxonomists as sites.
+* Convert phyto07 to presense absence
+* summarize by taxonomist
+* run the NMDS
 
-* read taxonomy data
-    - mutate: for is.na(genus_new) genus_new=genus (this will update any name changes.)
-* read phyto counts (2007 and 2012)
-* join taxonomy and counts
-* filter
-    - !is.na(phylum)-this eliminates data without a valid genus name
-    - VISIT_NO==1
-    - LAKE_SAMP=='Target_Sampled'
-* sum abundance by site_id and genus
-* create datasets phyto07 by spreading genus and abund; replace NA with zeros
-* create df cyano07 with the cyanobacteria data onl7
+## data steps
+* get the phyto07, taxonomist and env data
+* join the taxonomist and phyto07 data
+* change to presence absence
+* summarize by taxonomist
 
-```{r data, include=FALSE, echo=FALSE, eval=FALSE} 
-#get the taxonomy data: Note: original file='C:/bryan/rscripts/lakes_database/output/nla_phyto_taxonomy.xlsx',sheet='nla_phyto_taxonomy')
-tax<-read.csv(here("data/nla_phyto_taxonomy.csv"),na.strings=c("NA",""))%>%mutate(genus_new=ifelse(is.na(genus_new),genus,genus_new))
-
-#get the 2007 count data.  Data source: 'https://www.epa.gov/sites/production/files/2014-10/nla2007_phytoplankton_softalgaecount_20091023.csv'
-counts<-read.csv(here("data/nla2007_phytoplankton_softalgaecount_20091023.csv"))
-    nrow(counts) #31971
-###DELETE:  counts<-mutate(counts,GENUS=ifelse(GENUS=='Tetra\xebdron','Tetraëdron',GENUS))  #genus 'Tetraëdron' read incorrectly
-    
-#merge tax and counts by genus and filter
-t2007<-left_join(counts,tax,by=c("GENUS"="genus"))%>%filter(!is.na(phylum),VISIT_NO==1,LAKE_SAMP=='Target_Sampled')%>%rename(genus=genus_new)
-    nrow(t2007) #26382
-    
-t2007 <- group_by(t2007,SITE_ID,TAXONOMIST_CNT,phylum,genus)%>%
-  summarise(abund=sum(ABUND, na.rm = TRUE))
-    names(t2007)<-tolower(names(t2007))
-        nrow(t2007) #24107
-t2007<-ungroup(t2007)
-
-#create phyto07  all phytoplankton
-phyto07<-select(t2007,-phylum)%>%spread(genus,abund) #1,148 × 256
-phyto07[is.na(phyto07)] <- 0 
-    #save the taxonomist_cnt data to add to env below
-      taxonomist<-select(phyto07,site_id,taxonomist=taxonomist_cnt)%>%mutate(taxonomist=ifelse(taxonomist=="Dawn Perkins","DP",taxonomist))
-    #remove taxonomist_cnt
-      
-#create a ds without taxonomist=='JS'
-phyto07js<-filter(phyto07,taxonomist_cnt!='JS')%>%select(-taxonomist_cnt) #764 255
-phyto07<-select(phyto07,-taxonomist_cnt) #1,148 × 255
-save(phyto07,phyto07js,taxonomist,file=here('data/phyto07.rda'))
-
-#create cyano07 cyanobacteria only 
-cyano07<-filter(t2007,phylum=='Cyanobacteria')%>%select(-phylum)%>%spread(genus,abund) ##1,115 × 51
-cyano07[is.na(cyano07)] <- 0
-save(cyano07,file=here('data/cyano07.rda'))
-```
-
-```{r data1, include=FALSE, echo=FALSE, cache=FALSE} 
+```{r data, include=FALSE, echo=FALSE, cache=FALSE} 
 load(file=here('data/phyto07.rda'))
-load(file=here('data/cyano07.rda'))
+load(file=here('data/env.rda'))
+
+tax<-inner_join(taxonomist,phyto07)%>%select(-site_id) #1148  255
+tax1<-tax
+tax1[,-1][tax1[,-1]>0]<-1
+
+table(tax$Microcystis>0)  #true=661
+sum(tax1$Microcystis)  #661
+
+tax<-tax %>% group_by(taxonomist) %>% summarise_all(funs(sum))
+tax1<-tax1 %>% group_by(taxonomist) %>% summarise_all(funs(sum))
 ```
+
+```{r nmds1, include=FALSE, echo=FALSE, cache=FALSE,eval=TRUE} 
+nms_tax1<-metaMDS(tax1[,-1],k=4,trymax=10000,parallel=32)
+save(nms_tax1,file=here("data/nms_tax1.rda"))
+```
+
+
 
 * decide how many dimensions to use for the NMS
 
