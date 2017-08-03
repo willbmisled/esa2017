@@ -65,10 +65,10 @@ nms12<-metaMDS(phyto12[,-1],k=4,trymax=1000,parallel=32)
 
 ```{r plotNMDS, include=FALSE}
 #sites from NMS
-sites <- as.data.frame(scores(nms07_chk, display = "sites"))
+sites <- as.data.frame(scores(nms12, display = "sites"))
 
 #add taxonomist
-sites<-cbind(sites,select(taxonomist_chk,taxonomist))
+sites<-cbind(sites,select(taxonomist,taxonomist))
 
 qq<-ggplot(sites,aes(x=NMDS1,y=NMDS2)) + geom_point(colour="#31688EFF",size=3) + ggtitle("Rerun of Plot of NMDS Scores")+
   theme(plot.title = element_text(lineheight=4.8, face="bold",hjust = 0.5))
@@ -76,7 +76,7 @@ qq<-ggplot(sites,aes(x=NMDS1,y=NMDS2)) + geom_point(colour="#31688EFF",size=3) +
 qq 
 
 ###output plot
-jpeg(here("output/nms_chk_scores.jpeg")) 
+jpeg(here("output/nms12_scores.jpeg")) 
 qq
 dev.off()
 
@@ -85,7 +85,7 @@ dev.off()
 * Plot the first two NMDS score colored by taxonomist
 
 ```{r plotNMDS, include=FALSE}
-n<-6  #number of colors
+n<-7  #number of colors
 #type<-"discrete"
 type<-"continuous"
 
@@ -98,8 +98,8 @@ pal<-viridis_pal()(n)
 qq<-ggplot(sites,aes(x=NMDS1,y=NMDS2)) + geom_point(aes(x=NMDS1,y=NMDS2,col=factor(taxonomist)),size=3) + ggtitle("Rerun of NMDS Scores Colored by Taxonomist ")+
   scale_color_manual(values=pal,                          #c("red", "blue","orange"), 
                   name="Taxonomist",
-                  breaks=c('DP', 'EEW', 'JKE',  'JS', 'KMM',  'MH' ),
-                  labels=c('DP', 'EEW', 'JKE',  'JS', 'KMM',  'MH' ))+
+                  breaks=c('AB',  'AV',  'CI',  'DC',  'EA',  'JW',  'KS' ),
+                  labels=c('AB',  'AV',  'CI',  'DC',  'EA',  'JW',  'KS' ))+
   theme(plot.title = element_text(lineheight=4.8, face="bold",hjust = 0.5))
 
 
@@ -107,7 +107,7 @@ qq<-ggplot(sites,aes(x=NMDS1,y=NMDS2)) + geom_point(aes(x=NMDS1,y=NMDS2,col=fact
 qq 
 
 ###output plot
-jpeg(here("output/chk_nms_grp_taxonomist.jpeg")) 
+jpeg(here("output/nms12_taxonomist.jpeg")) 
 qq
 dev.off()
 
