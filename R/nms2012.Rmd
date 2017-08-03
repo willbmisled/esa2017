@@ -1,0 +1,115 @@
+---
+title: "nms2012"
+author: "Bryan Milstead"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+options(stringsAsFactors = FALSE) 
+library(knitr)
+library(vegan)
+#library(vegan3d)
+library(ecodist)
+library(readxl)
+library(ggplot2)
+library(randomForest)
+#library(labdsv) #this messes with the tidyverse; call explicitly in the indicator species analysis
+library(tidyverse)
+library(here)
+library(wesanderson)
+library(hrbrthemes)  #+ theme_ipsum()
+library(viridis)
+```
+
+
+```{r data, include=FALSE, echo=FALSE, eval=FALSE} 
+
+#get the 2007 count data.  Data source: 'https://www.epa.gov/sites/production/files/2014-10/nla2007_phytoplankton_softalgaecount_20091023.csv'
+counts<-read.csv(here("data/nla2012_phyto_count.csv"),na.strings=c("NA",""," "))
+    nrow(counts) #38627
+    
+counts<-filter(counts,!is.na(GENUS))
+  nrow(counts) #36532
+
+t12 <- group_by(counts,SITE_ID,ANALYST_NAME,GENUS)%>%
+  summarise(abund=sum(ABUNDANCE, na.rm = TRUE))
+    names(t12)<-tolower(names(t12))
+        nrow(t12) #25097
+t12<-ungroup(t12)
+
+#create phyto07  all phytoplankton
+phyto12<-spread(t12,genus,abund) #1,429 x 285
+phyto12[is.na(phyto12)] <- 0 
+    
+#save the taxonomist_cnt data to add to env below
+      taxonomist<-select(phyto12,site_id,taxonomist=analyst_name)
+    
+      
+phyto12<-select(phyto12,-analyst_name) #1,429 x 284
+
+```
+
+
+* run the NMDS on the phyto abundances 
+```{r NMS07, include=FALSE, echo=FALSE, cache=FALSE,eval=FALSE} 
+nms12<-metaMDS(phyto12[,-1],k=4,trymax=1000,parallel=32)
+```
+
+
+* Plot the first two NMDS score
+
+```{r plotNMDS, include=FALSE}
+#sites from NMS
+sites <- as.data.frame(scores(nms07_chk, display = "sites"))
+
+#add taxonomist
+sites<-cbind(sites,select(taxonomist_chk,taxonomist))
+
+qq<-ggplot(sites,aes(x=NMDS1,y=NMDS2)) + geom_point(colour="#31688EFF",size=3) + ggtitle("Rerun of Plot of NMDS Scores")+
+  theme(plot.title = element_text(lineheight=4.8, face="bold",hjust = 0.5))
+                               
+qq 
+
+###output plot
+jpeg(here("output/nms_chk_scores.jpeg")) 
+qq
+dev.off()
+
+```
+
+* Plot the first two NMDS score colored by taxonomist
+
+```{r plotNMDS, include=FALSE}
+n<-6  #number of colors
+#type<-"discrete"
+type<-"continuous"
+
+#pal<-c(2:7)
+pal<-viridis_pal()(n)
+#pal<-wes_palette("Zissou", n, type =type)
+#pal<-wes_palette("FantasticFox", n, type =type)
+#pal<-wes_palette("Darjeeling", n, type =type)
+
+qq<-ggplot(sites,aes(x=NMDS1,y=NMDS2)) + geom_point(aes(x=NMDS1,y=NMDS2,col=factor(taxonomist)),size=3) + ggtitle("Rerun of NMDS Scores Colored by Taxonomist ")+
+  scale_color_manual(values=pal,                          #c("red", "blue","orange"), 
+                  name="Taxonomist",
+                  breaks=c('DP', 'EEW', 'JKE',  'JS', 'KMM',  'MH' ),
+                  labels=c('DP', 'EEW', 'JKE',  'JS', 'KMM',  'MH' ))+
+  theme(plot.title = element_text(lineheight=4.8, face="bold",hjust = 0.5))
+
+
+                               
+qq 
+
+###output plot
+jpeg(here("output/chk_nms_grp_taxonomist.jpeg")) 
+qq
+dev.off()
+
+```
+
