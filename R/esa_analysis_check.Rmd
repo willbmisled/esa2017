@@ -124,3 +124,97 @@ dev.off()
 
 ```
 
+
+* NOw try totally unmanipulated
+
+```{r data1, include=FALSE, echo=FALSE, eval=FALSE} 
+
+#get the 2007 count data.  Data source: 'https://www.epa.gov/sites/production/files/2014-10/nla2007_phytoplankton_softalgaecount_20091023.csv'
+counts<-read.csv(here("data/nla2007_phytoplankton_softalgaecount_20091023.csv"),na.strings=c("NA",""," "))
+    nrow(counts) #31971
+    
+t2007 <- group_by(counts,SITE_ID,TAXONOMIST_CNT,GENUS)%>%
+  summarise(abund=sum(ABUND, na.rm = TRUE))
+    names(t2007)<-tolower(names(t2007))
+        nrow(t2007) #26478
+t2007<-ungroup(t2007)
+
+#create phyto07  all phytoplankton
+phyto07<-spread(t2007,genus,abund) #1164  269
+phyto07[is.na(phyto07)] <- 0 
+    #save the taxonomist_cnt data to add to env below
+      taxonomist_chk1<-select(phyto07,site_id,taxonomist=taxonomist_cnt)%>%mutate(taxonomist=ifelse(taxonomist=="Dawn Perkins","DP",taxonomist))
+    #remove taxonomist_cnt
+      
+phyto07_chk1<-select(phyto07,-taxonomist_cnt) #1,164 x 268
+
+a<-apply(phyto07_chk1[-1],1,sum) #zero sum rows
+
+phyto07_chk1<-phyto07_chk1[a!=0,] #1161  268
+
+taxonomist_chk1<-taxonomist_chk1[a!=0,]
+
+
+
+
+
+```
+
+* run the NMDS on the phyto abundances uncorrected
+```{r NMS07, include=FALSE, echo=FALSE, cache=FALSE,eval=FALSE} 
+nms07_chk1<-metaMDS(phyto07_chk1[,-1],k=4,trymax=1000,parallel=32)
+
+```
+
+* Plot the first two NMDS score
+
+```{r plotNMDS, include=FALSE}
+#sites from NMS
+sites <- as.data.frame(scores(nms07_chk1, display = "sites"))
+
+#add taxonomist
+sites<-cbind(sites,select(taxonomist_chk1,taxonomist))
+
+qq<-ggplot(sites,aes(x=NMDS1,y=NMDS2)) + geom_point(colour="#31688EFF",size=3) + ggtitle("Rerun of Plot of NMDS Scores")+
+  theme(plot.title = element_text(lineheight=4.8, face="bold",hjust = 0.5))
+                               
+qq 
+
+###output plot
+jpeg(here("output/nms_chk1_scores.jpeg")) 
+qq
+dev.off()
+
+```
+
+* Plot the first two NMDS score colored by taxonomist
+
+```{r plotNMDS, include=FALSE}
+n<-6  #number of colors
+#type<-"discrete"
+type<-"continuous"
+
+#pal<-c(2:7)
+pal<-viridis_pal()(n)
+#pal<-wes_palette("Zissou", n, type =type)
+#pal<-wes_palette("FantasticFox", n, type =type)
+#pal<-wes_palette("Darjeeling", n, type =type)
+
+qq<-ggplot(sites,aes(x=NMDS1,y=NMDS2)) + geom_point(aes(x=NMDS1,y=NMDS2,col=factor(taxonomist)),size=3) + ggtitle("Rerun of NMDS Scores Colored by Taxonomist ")+
+  scale_color_manual(values=pal,                          #c("red", "blue","orange"), 
+                  name="Taxonomist",
+                  breaks=c('DP', 'EEW', 'JKE',  'JS', 'KMM',  'MH' ),
+                  labels=c('DP', 'EEW', 'JKE',  'JS', 'KMM',  'MH' ))+
+  theme(plot.title = element_text(lineheight=4.8, face="bold",hjust = 0.5))
+
+
+                               
+qq 
+
+###output plot
+jpeg(here("output/chk1_nms_grp_taxonomist.jpeg")) 
+qq
+dev.off()
+
+```
+
